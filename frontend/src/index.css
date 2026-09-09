@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-50 text-gray-900;
+}
+
+/* Sticky first column + header for the matrix table */
+.matrix-sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: inherit;
+}
+
+.matrix-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
