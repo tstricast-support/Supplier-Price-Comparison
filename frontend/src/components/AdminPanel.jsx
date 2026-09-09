@@ -31,6 +31,9 @@ export default function AdminPanel() {
   const [departments, setDepartments] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [products, setProducts] = useState([])
+  // Products grouped by name+variant across departments, so "Add Price Entry"
+  // can apply one price to every department that product exists in at once.
+  const [groupedProducts, setGroupedProducts] = useState([])
 
   // Single shared refresh so every card reflects new/deleted suppliers, products,
   // and departments immediately.
@@ -43,6 +46,26 @@ export default function AdminPanel() {
         label: `${r.product_name}${r.variant_code_or_size ? ' — ' + r.variant_code_or_size : ''} (${r.department_name})`,
       }))
       setProducts(flat)
+
+      // Group rows that share the same name + variant across departments,
+      // e.g. "cold laminate 11" in both "ilab" and "i_photobook" become one
+      // group with two product ids.
+      const groups = new Map()
+      data.rows.forEach((r) => {
+        const key = `${r.product_name}|||${r.variant_code_or_size || ''}`
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            label: `${r.product_name}${r.variant_code_or_size ? ' — ' + r.variant_code_or_size : ''}`,
+            productIds: [],
+            departmentNames: [],
+          })
+        }
+        const g = groups.get(key)
+        g.productIds.push(r.product_id)
+        g.departmentNames.push(r.department_name)
+      })
+      setGroupedProducts(Array.from(groups.values()))
     })
   }, [])
 
@@ -60,7 +83,7 @@ export default function AdminPanel() {
       />
       <AddPriceCard
         suppliers={suppliers}
-        products={products}
+        products={groupedProducts}
         onCreated={refreshLookups}
       />
     </div>
@@ -190,39 +213,67 @@ function AddSupplierCard({ suppliers, onCreated }) {
 function AddProductCard({ departments, products, onCreated }) {
   const [name, setName] = useState('')
   const [variant, setVariant] = useState('')
-  const [departmentId, setDepartmentId] = useState('')
+  const [departmentIds, setDepartmentIds] = useState([]) // now an array
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState(null)
 
-  const [pendingDelete, setPendingDelete] = useState(null) // { id, label } or null
+  const [pendingDelete, setPendingDelete] = useState(null)
   const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
-    if (!departmentId && departments.length > 0) setDepartmentId(String(departments[0].id))
-  }, [departments, departmentId])
+  const toggleDepartment = (id) => {
+    setDepartmentIds((prev) =>
+      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]
+    )
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (departmentIds.length === 0) {
+      setNotice({ type: 'error', message: 'Select at least one department.' })
+      return
+    }
+
     setSaving(true)
     setNotice(null)
-    try {
-      await createProduct({
-        name: name.trim(),
-        variant_code_or_size: variant.trim() || null,
-        department_id: Number(departmentId),
+
+    // Create one Product row per selected department — the schema already
+    // allows the same name+variant to exist in multiple departments, since
+    // the uniqueness constraint is (name, variant, department_id) together.
+    const results = await Promise.allSettled(
+      departmentIds.map((deptId) =>
+        createProduct({
+          name: name.trim(),
+          variant_code_or_size: variant.trim() || null,
+          department_id: Number(deptId),
+        })
+      )
+    )
+
+    const failed = results.filter((r) => r.status === 'rejected')
+    const succeeded = results.length - failed.length
+
+    if (failed.length === 0) {
+      setNotice({
+        type: 'success',
+        message: `"${name.trim()}" added to ${succeeded} department${succeeded > 1 ? 's' : ''}.`,
       })
-      setNotice({ type: 'success', message: `Product "${name.trim()}" added.` })
       setName('')
       setVariant('')
-      onCreated()
-    } catch (err) {
+      setDepartmentIds([])
+    } else if (succeeded > 0) {
       setNotice({
         type: 'error',
-        message: err.response?.data?.detail || 'Failed to add product.',
+        message: `Added to ${succeeded} department(s), but ${failed.length} failed (likely already exists there).`,
       })
-    } finally {
-      setSaving(false)
+    } else {
+      setNotice({
+        type: 'error',
+        message: failed[0].reason?.response?.data?.detail || 'Failed to add product.',
+      })
     }
+
+    onCreated()
+    setSaving(false)
   }
 
   const handleConfirmDelete = async () => {
@@ -275,28 +326,39 @@ function AddProductCard({ departments, products, onCreated }) {
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           />
         </div>
+
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Department</label>
-          <select
-            value={departmentId}
-            onChange={(e) => setDepartmentId(e.target.value)}
-            required
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-          >
+          <label className="mb-1 block text-xs font-medium text-gray-600">
+            Departments <span className="font-normal text-gray-400">(select one or more)</span>
+          </label>
+          <div className="space-y-1.5 rounded-lg border border-gray-300 p-2">
             {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
+              <label
+                key={d.id}
+                className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-gray-50"
+              >
+                <input
+                  type="checkbox"
+                  checked={departmentIds.includes(String(d.id))}
+                  onChange={() => toggleDepartment(String(d.id))}
+                  className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span className="text-gray-800">{d.name}</span>
+              </label>
             ))}
-          </select>
+            {departments.length === 0 && (
+              <p className="px-1.5 py-1 text-xs text-gray-400">No departments available.</p>
+            )}
+          </div>
         </div>
+
         <button
           type="submit"
-          disabled={saving || !name.trim() || !departmentId}
+          disabled={saving || !name.trim() || departmentIds.length === 0}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
         >
           <PlusCircle size={16} />
-          {saving ? 'Adding...' : 'Add Product'}
+          {saving ? 'Adding...' : `Add Product${departmentIds.length > 1 ? ` to ${departmentIds.length} Departments` : ''}`}
         </button>
       </form>
 
@@ -341,10 +403,16 @@ function AddProductCard({ departments, products, onCreated }) {
 }
 
 // ---------------- Add Price Entry (link supplier + product + price) ----------------
+// `products` here is the GROUPED list from AdminPanel: one entry per
+// name+variant, each carrying every department's product_id it exists under.
+// Submitting creates the price for ALL of those departments in one go, so a
+// product added to multiple departments shows a filled-in Matrix comparison
+// for every department right away instead of only the one you happened to
+// pick in the dropdown.
 
 function AddPriceCard({ suppliers, products, onCreated }) {
   const [supplierId, setSupplierId] = useState('')
-  const [productId, setProductId] = useState('')
+  const [productKey, setProductKey] = useState('')
   const [totalPrice, setTotalPrice] = useState('')
   const [qty, setQty] = useState('')
   const [saving, setSaving] = useState(false)
@@ -355,35 +423,66 @@ function AddPriceCard({ suppliers, products, onCreated }) {
   }, [suppliers, supplierId])
 
   useEffect(() => {
-    if (!productId && products.length > 0) setProductId(String(products[0].id))
-  }, [products, productId])
+    if (!productKey && products.length > 0) setProductKey(products[0].key)
+  }, [products, productKey])
+
+  // Reset selection if the currently selected group disappears (e.g. deleted)
+  useEffect(() => {
+    if (productKey && !products.some((p) => p.key === productKey)) {
+      setProductKey(products.length > 0 ? products[0].key : '')
+    }
+  }, [products, productKey])
+
+  const selectedGroup = products.find((p) => p.key === productKey)
 
   const unitPreview =
     totalPrice && qty && Number(qty) > 0 ? (Number(totalPrice) / Number(qty)).toFixed(4) : '-'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const group = products.find((p) => p.key === productKey)
+    if (!group) return
+
     setSaving(true)
     setNotice(null)
-    try {
-      await createSupplierProduct({
-        supplier_id: Number(supplierId),
-        product_id: Number(productId),
-        total_price: Number(totalPrice),
-        total_length_or_quantity: Number(qty),
+
+    // Fire one create per department this product exists in, same pattern
+    // AddProductCard uses above.
+    const results = await Promise.allSettled(
+      group.productIds.map((pid) =>
+        createSupplierProduct({
+          supplier_id: Number(supplierId),
+          product_id: pid,
+          total_price: Number(totalPrice),
+          total_length_or_quantity: Number(qty),
+        })
+      )
+    )
+
+    const failed = results.filter((r) => r.status === 'rejected')
+    const succeeded = results.length - failed.length
+
+    if (failed.length === 0) {
+      setNotice({
+        type: 'success',
+        message: `Price added for "${group.label}" across ${succeeded} department${succeeded > 1 ? 's' : ''}.`,
       })
-      setNotice({ type: 'success', message: 'Price entry added to the matrix.' })
       setTotalPrice('')
       setQty('')
-      onCreated()
-    } catch (err) {
+    } else if (succeeded > 0) {
       setNotice({
         type: 'error',
-        message: err.response?.data?.detail || 'Failed to add price entry.',
+        message: `Added for ${succeeded} department(s); ${failed.length} already had a price for this supplier — edit those from the Matrix or Supplier view instead.`,
       })
-    } finally {
-      setSaving(false)
+    } else {
+      setNotice({
+        type: 'error',
+        message: failed[0].reason?.response?.data?.detail || 'Failed to add price entry.',
+      })
     }
+
+    onCreated()
+    setSaving(false)
   }
 
   return (
@@ -393,8 +492,8 @@ function AddPriceCard({ suppliers, products, onCreated }) {
         <h2 className="text-sm font-semibold text-gray-900">Add Price Entry</h2>
       </div>
       <p className="mb-3 text-xs text-gray-500">
-        Link an existing supplier to an existing product with a price. Use this after
-        creating the supplier and product above.
+        Link an existing supplier to an existing product with a price. If the product
+        exists in multiple departments, this price is applied to all of them at once.
       </p>
 
       <Notice notice={notice} />
@@ -418,17 +517,23 @@ function AddPriceCard({ suppliers, products, onCreated }) {
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">Product</label>
           <select
-            value={productId}
-            onChange={(e) => setProductId(e.target.value)}
+            value={productKey}
+            onChange={(e) => setProductKey(e.target.value)}
             required
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           >
             {products.map((p) => (
-              <option key={p.id} value={p.id}>
+              <option key={p.key} value={p.key}>
                 {p.label}
+                {p.productIds.length > 1 ? ` (${p.productIds.length} departments)` : ''}
               </option>
             ))}
           </select>
+          {selectedGroup && selectedGroup.productIds.length > 1 && (
+            <p className="mt-1 text-xs text-gray-500">
+              Applies to: {selectedGroup.departmentNames.join(', ')}
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -461,7 +566,7 @@ function AddPriceCard({ suppliers, products, onCreated }) {
 
         <button
           type="submit"
-          disabled={saving || !supplierId || !productId}
+          disabled={saving || !supplierId || !productKey}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
         >
           <PlusCircle size={16} />
