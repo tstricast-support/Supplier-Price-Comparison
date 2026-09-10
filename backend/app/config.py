@@ -4,7 +4,11 @@ from typing import List
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/supplier_price_db"
-    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+    CORS_ORIGINS: str = (
+        "http://localhost:5173,"
+        "http://127.0.0.1:5173,"
+        "https://luminous-bravery-production-8d97.up.railway.app"
+    )
 
     @property
     def cors_origins_list(self) -> List[str]:
