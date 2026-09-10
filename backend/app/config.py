@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     # `psycopg[binary]` instead of `psycopg2-binary` (e.g. because psycopg2
     # wouldn't build on your Python version). Leave False if you're still
     # on psycopg2-binary.
-    USE_PSYCOPG3: bool = False
+    USE_PSYCOPG3: bool = True
 
     class Config:
         env_file = ".env"
