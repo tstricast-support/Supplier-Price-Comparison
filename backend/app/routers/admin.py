@@ -74,6 +74,37 @@ def create_product(payload: schemas.ProductCreate, db: Session = Depends(get_db)
     db.refresh(product)
     return product
 
+@router.put("/products/{product_id}", response_model=schemas.ProductOut)
+def update_product(product_id: int, payload: schemas.ProductUpdate, db: Session = Depends(get_db)):
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    # Same uniqueness rule as creation: (name, variant, department) must
+    # stay unique, so check no other product in this department already
+    # has the new name/variant before renaming.
+    clash = (
+        db.query(models.Product)
+        .filter(
+            models.Product.id != product_id,
+            models.Product.department_id == product.department_id,
+            models.Product.name == payload.name.strip(),
+            models.Product.variant_code_or_size == (payload.variant_code_or_size.strip() if payload.variant_code_or_size else None),
+        )
+        .first()
+    )
+    if clash:
+        raise HTTPException(
+            status_code=400,
+            detail="Another item with this name and variant already exists in this department.",
+        )
+
+    product.name = payload.name.strip()
+    product.variant_code_or_size = payload.variant_code_or_size.strip() if payload.variant_code_or_size else None
+    db.commit()
+    db.refresh(product)
+    return product
+
 
 @router.delete("/products/{product_id}")
 def delete_product(product_id: int, db: Session = Depends(get_db)):

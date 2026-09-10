@@ -35,6 +35,9 @@ export const deleteSupplier = (supplierId) =>
 export const createProduct = (payload) =>
   api.post('/api/admin/products', payload)
 
+export const updateProduct = (productId, payload) =>
+  api.put(`/api/admin/products/${productId}`, payload)
+
 export const deleteProduct = (productId) =>
   api.delete(`/api/admin/products/${productId}`)
 

@@ -6,6 +6,7 @@ import VendorList from './VendorList'
 import EditPriceModal from './EditPriceModal'
 import PriceHistoryModal from './PriceHistoryModal'
 import AddVendorModal from './AddVendorModal'
+import EditItemModal from './EditItemModal'
 
 /**
  * The main Browse experience:
@@ -30,6 +31,8 @@ export default function BrowseFlow({ refreshKey }) {
   const [editCell, setEditCell] = useState(null)
   const [historyCell, setHistoryCell] = useState(null)
   const [addingVendor, setAddingVendor] = useState(false)
+
+  const [editingItem, setEditingItem] = useState(null)
 
   const loadDepartments = useCallback(() => {
     setLoadingDepartments(true)
@@ -104,6 +107,7 @@ export default function BrowseFlow({ refreshKey }) {
           loading={loadingItems}
           onBack={handleBackToDepartments}
           onSelect={handleSelectItem}
+          onEdit={(item) => setEditingItem(item)}
         />
       )}
 
@@ -171,6 +175,18 @@ export default function BrowseFlow({ refreshKey }) {
           onClose={() => setHistoryCell(null)}
         />
       )}
+
+      {editingItem && (
+        <EditItemModal
+          item={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSaved={() => {
+            setEditingItem(null)
+            if (activeDepartment) loadItems(activeDepartment.id)
+          }}
+        />
+      )}
+
     </div>
   )
 }

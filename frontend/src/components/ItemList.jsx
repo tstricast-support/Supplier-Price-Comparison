@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react'
-import { Search, ChevronRight, ChevronLeft, Package } from 'lucide-react'
+import { Search, ChevronRight, ChevronLeft, Package, Pencil } from 'lucide-react'
 import { formatRs } from '../utils/currency'
 
 /** Step 2 of Browse: A-Z items within the chosen department. */
-export default function ItemList({ department, items, loading, onBack, onSelect }) {
+export default function ItemList({ department, items, loading, onBack, onSelect, onEdit }) {
   const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => {
@@ -48,10 +48,10 @@ export default function ItemList({ department, items, loading, onBack, onSelect 
       {!loading && filtered.length > 0 && (
         <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white shadow-sm">
           {filtered.map((item) => (
-            <li key={item.product_id}>
+            <li key={item.product_id} className="flex items-center">
               <button
                 onClick={() => onSelect(item)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-gray-50 active:bg-gray-100"
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-gray-50 active:bg-gray-100"
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="shrink-0 rounded-lg bg-gray-100 p-2">
@@ -73,6 +73,16 @@ export default function ItemList({ department, items, loading, onBack, onSelect 
                   )}
                   <ChevronRight size={18} className="text-gray-400" />
                 </div>
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onEdit(item)
+                }}
+                aria-label={`Edit ${item.product_name}`}
+                className="mr-3 shrink-0 rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-brand-600"
+              >
+                <Pencil size={16} />
               </button>
             </li>
           ))}

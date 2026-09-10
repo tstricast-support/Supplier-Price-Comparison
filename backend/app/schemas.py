@@ -27,6 +27,10 @@ class ProductCreate(BaseModel):
     variant_code_or_size: Optional[str] = None
     department_id: int
 
+class ProductUpdate(BaseModel):
+    name: str
+    variant_code_or_size: Optional[str] = None
+
 
 # ---------- Suppliers (Vendors) ----------
 
