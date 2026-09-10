@@ -5,6 +5,7 @@ import ItemList from './ItemList'
 import VendorList from './VendorList'
 import EditPriceModal from './EditPriceModal'
 import PriceHistoryModal from './PriceHistoryModal'
+import AddVendorModal from './AddVendorModal'
 
 /**
  * The main Browse experience:
@@ -28,6 +29,7 @@ export default function BrowseFlow({ refreshKey }) {
 
   const [editCell, setEditCell] = useState(null)
   const [historyCell, setHistoryCell] = useState(null)
+  const [addingVendor, setAddingVendor] = useState(false)
 
   const loadDepartments = useCallback(() => {
     setLoadingDepartments(true)
@@ -112,6 +114,7 @@ export default function BrowseFlow({ refreshKey }) {
           vendors={vendors}
           loading={loadingVendors}
           onBack={handleBackToItems}
+          onAddVendor={() => setAddingVendor(true)}
           onEdit={(v) =>
             setEditCell({
               supplier_product_id: v.supplier_product_id,
@@ -131,8 +134,22 @@ export default function BrowseFlow({ refreshKey }) {
               supplier_product_id: v.supplier_product_id,
               productName: activeItem.name,
               supplierName: v.supplier_name,
+              total_length_or_quantity: v.total_length_or_quantity,
+              pricing_mode: v.pricing_mode,
             })
           }
+        />
+      )}
+
+      {addingVendor && activeItem && (
+        <AddVendorModal
+          item={activeItem}
+          existingVendorIds={vendors.map((v) => v.supplier_id)}
+          onClose={() => setAddingVendor(false)}
+          onCreated={() => {
+            setAddingVendor(false)
+            refreshVendors()
+          }}
         />
       )}
 

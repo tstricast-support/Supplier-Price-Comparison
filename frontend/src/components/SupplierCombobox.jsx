@@ -9,7 +9,8 @@ export default function SupplierCombobox({ suppliers, value, onChange }) {
       options={options}
       value={value}
       onChange={onChange}
-      placeholder="Search vendor..."
+      placeholder="Search vendor, or leave empty for all vendors..."
+      clearLabel="Show all vendors"
     />
   )
 }

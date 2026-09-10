@@ -36,7 +36,7 @@ export default function App() {
           <TabButton active={tab === 'browse'} onClick={() => setTab('browse')} icon={<LayoutGrid size={15} />}>
             Browse
           </TabButton>
-          <TabButton active={tab === 'supplier'} onClick={() => setTab('supplier')} icon={<Building2 size={15} />}>
+          <TabButton active={tab === 'supplier'} onClick={() => setTab('supplier')} >
             Vendor View
           </TabButton>
           <TabButton active={tab === 'manage'} onClick={() => setTab('manage')} icon={<Settings size={15} />}>

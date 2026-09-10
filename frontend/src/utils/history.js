@@ -1,44 +1,58 @@
-// Groups a raw price-history list (newest first, from the API) into one
-// data point per ISO week for the trend chart. Each week's point is the
-// price AFTER the last change recorded that week. Weeks are returned in
-// chronological (oldest -> newest) order, ready for a line chart's x-axis.
-function isoWeekKey(date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  const dayNum = d.getUTCDay() || 7
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7)
-  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`
-}
-
 function parseAsUTC(timestamp) {
   const hasTZ = /Z$|[+-]\d{2}:?\d{2}$/.test(timestamp)
   return new Date(hasTZ ? timestamp : `${timestamp}Z`)
 }
 
-export function groupHistoryByWeek(history) {
-  // history is newest-first from the API; work chronologically instead
+// Turns the raw price-history list (newest first, from the API) into one
+// chart point PER RECORDED CHANGE, in chronological order, plus a leading
+// "start" point for the price before the very first change.
+//
+// `quantity` is the item's current total_length_or_quantity, used to
+// convert the stored total prices into unit prices (PriceHistory only
+// stores total price). Assumes quantity hasn't changed across the history
+// shown - true for the normal case of editing price only.
+export function buildPriceTrend(history, quantity) {
+  if (!history || history.length === 0 || !quantity) return []
+
   const chronological = [...history].sort(
     (a, b) => parseAsUTC(a.timestamp) - parseAsUTC(b.timestamp)
   )
 
-  const byWeek = new Map()
-  for (const entry of chronological) {
-    const date = parseAsUTC(entry.timestamp)
-    const key = isoWeekKey(date)
-    // Later entries in the same week overwrite earlier ones, so we end up
-    // with the last price recorded that week.
-    byWeek.set(key, {
-      weekKey: key,
-      date,
-      price: entry.new_price,
-      changedBy: entry.changed_by_admin,
-      entries: [...(byWeek.get(key)?.entries || []), entry],
-    })
-  }
+  const raw = []
 
-  return Array.from(byWeek.values()).map((point, idx, arr) => ({
-    ...point,
-    label: point.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-  }))
+  const first = chronological[0]
+  raw.push({
+    key: 'start',
+    date: new Date(parseAsUTC(first.timestamp).getTime() - 1),
+    unitPrice: first.old_price / quantity,
+    entry: null,
+  })
+
+  chronological.forEach((entry) => {
+    raw.push({
+      key: String(entry.id),
+      date: parseAsUTC(entry.timestamp),
+      unitPrice: entry.new_price / quantity,
+      entry,
+    })
+  })
+
+  // If several changes happened on the same calendar day, a plain date
+  // label ("Sep 10") is identical for all of them and the x-axis can't
+  // tell them apart. Switch those points to a time label instead.
+  const dayCounts = new Map()
+  raw.forEach((p) => {
+    const dayKey = p.date.toDateString()
+    dayCounts.set(dayKey, (dayCounts.get(dayKey) || 0) + 1)
+  })
+
+  return raw.map((p) => {
+    if (p.key === 'start') return { ...p, label: 'Start' }
+    const dayKey = p.date.toDateString()
+    const label =
+      dayCounts.get(dayKey) > 1
+        ? p.date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        : p.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    return { ...p, label }
+  })
 }

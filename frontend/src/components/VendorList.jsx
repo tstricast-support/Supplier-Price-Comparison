@@ -1,20 +1,29 @@
-import { ChevronLeft, Trophy, Building2, Pencil, History } from 'lucide-react'
+import { ChevronLeft, Trophy, Building2, Pencil, History, PlusCircle } from 'lucide-react'
 import { formatRs, formatMeasurement, unitSuffix } from '../utils/currency'
 
 /** Step 3 of Browse: A-Z vendors offering the chosen item, each with
- * Price Edit / History actions. */
-export default function VendorList({ item, department, vendors, loading, onBack, onEdit, onHistory }) {
+ * Price Edit / History actions, plus an action to add another vendor's
+ * price for this same item. */
+export default function VendorList({ item, department, vendors, loading, onBack, onEdit, onHistory, onAddVendor }) {
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+          >
+            <ChevronLeft size={16} /> {department.name}
+          </button>
+          <span className="text-gray-300">/</span>
+          <span className="text-sm font-semibold text-gray-900">{item.name}</span>
+        </div>
         <button
-          onClick={onBack}
-          className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+          onClick={onAddVendor}
+          className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700"
         >
-          <ChevronLeft size={16} /> {department.name}
+          <PlusCircle size={14} /> Add Vendor
         </button>
-        <span className="text-gray-300">/</span>
-        <span className="text-sm font-semibold text-gray-900">{item.name}</span>
       </div>
 
       {item.variant_code_or_size && (
@@ -25,7 +34,7 @@ export default function VendorList({ item, department, vendors, loading, onBack,
 
       {!loading && vendors.length === 0 && (
         <p className="py-10 text-center text-sm text-gray-500">
-          No vendor prices yet for this item. Add one from "+ New Product" in the nav bar.
+          No vendor prices yet for this item. Tap "Add Vendor" above to add one.
         </p>
       )}
 
@@ -40,15 +49,12 @@ export default function VendorList({ item, department, vendors, loading, onBack,
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <div className={`shrink-0 rounded-lg p-2 ${v.is_cheapest ? 'bg-green-50' : 'bg-gray-100'}`}>
-                    <Building2 size={16} className={v.is_cheapest ? 'text-green-600' : 'text-gray-500'} />
-                  </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <p className="truncate font-semibold text-gray-900">{v.supplier_name}</p>
                       {v.is_cheapest && (
                         <span className="flex shrink-0 items-center gap-0.5 rounded bg-green-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                          <Trophy size={10} /> CHEAPEST
+                           CHEAPEST
                         </span>
                       )}
                     </div>
