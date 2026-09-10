@@ -49,3 +49,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+print("CORS ORIGINS:", settings.cors_origins_list)
