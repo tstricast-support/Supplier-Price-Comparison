@@ -11,7 +11,9 @@ class Department(Base):
     __tablename__ = "departments"
 
     id = Column(Integer, primary_key=True, index=True)
-    # tricast, ilab, i_photobook, ilab_std
+    # Internal stable key, e.g. "i_lab" - never shown to users, used for lookups/migrations
+    code = Column(String(50), unique=True, nullable=True, index=True)
+    # Display name shown in the UI, e.g. "I LAB"
     name = Column(String(100), unique=True, nullable=False, index=True)
 
     products = relationship("Product", back_populates="department", cascade="all, delete-orphan")
@@ -22,7 +24,7 @@ class Product(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False, index=True)
-    variant_code_or_size = Column(String(100), nullable=True)  # e.g. "30m", "A4", size code
+    variant_code_or_size = Column(String(100), nullable=True)
     department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=False)
 
     department = relationship("Department", back_populates="products")
@@ -54,11 +56,16 @@ class SupplierProduct(Base):
     supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
 
-    total_price = Column(Float, nullable=False)
-    total_length_or_quantity = Column(Float, nullable=False)  # e.g. 30 (meters), 100 (units)
+    pricing_mode = Column(String(20), nullable=False, default="quantity")
 
-    # unit_price is derived (total_price / total_length_or_quantity) but persisted
-    # so it can be indexed/sorted efficiently and audited historically.
+    length = Column(Float, nullable=True)
+    length_unit = Column(String(4), nullable=True)  # "in" | "ft" | "m" | "cm"
+    width = Column(Float, nullable=True)
+    width_unit = Column(String(4), nullable=True)   # "in" | "ft" | "m" | "cm"
+
+    total_price = Column(Float, nullable=False)
+    total_length_or_quantity = Column(Float, nullable=False)
+
     unit_price = Column(Float, nullable=False)
 
     updated_at = Column(
@@ -93,8 +100,6 @@ class PriceHistory(Base):
 
     old_price = Column(Float, nullable=False)
     new_price = Column(Float, nullable=False)
-    # Free-text label for who made the change. No login system, so this defaults
-    # to a generic tag; pass `changed_by` in the update request to customize it.
     changed_by_admin = Column(String(100), nullable=False, default="staff")
     timestamp = Column(
         DateTime(timezone=True),

@@ -3,15 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
 from app.config import settings
-from app.routers import price_matrix, suppliers, admin
+from app.routers import price_matrix, suppliers, admin, navigation
 
-# Create tables if they don't exist (use Alembic migrations in real production)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Supplier Price Comparison System",
-    description="Compare supplier prices by unit price across products/departments.",
-    version="1.0.0",
+    description="Browse departments -> items -> vendors, and compare unit prices.",
+    version="2.0.0",
 )
 
 app.add_middleware(
@@ -25,6 +24,7 @@ app.add_middleware(
 app.include_router(price_matrix.router)
 app.include_router(suppliers.router)
 app.include_router(admin.router)
+app.include_router(navigation.router)
 
 
 @app.get("/api/health", tags=["health"])

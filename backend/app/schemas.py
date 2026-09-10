@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import List, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from typing import List, Literal, Optional
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 
 # ---------- Departments ----------
@@ -9,6 +9,7 @@ class DepartmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     name: str
+    code: Optional[str] = None
 
 
 # ---------- Products ----------
@@ -27,7 +28,7 @@ class ProductCreate(BaseModel):
     department_id: int
 
 
-# ---------- Suppliers ----------
+# ---------- Suppliers (Vendors) ----------
 
 class SupplierOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -39,11 +40,37 @@ class SupplierCreate(BaseModel):
     name: str
 
 
-# ---------- SupplierProduct (matrix cell) ----------
+# ---------- SupplierProduct (matrix cell / vendor offer) ----------
+
+PricingMode = Literal["quantity", "sq_inch", "sq_feet"]
+LengthUnit = Literal["in", "ft", "m", "cm"]
+
 
 class SupplierProductBase(BaseModel):
+    pricing_mode: PricingMode = "quantity"
     total_price: float = Field(..., gt=0)
-    total_length_or_quantity: float = Field(..., gt=0)
+    quantity: Optional[float] = Field(None, gt=0)
+    length: Optional[float] = Field(None, gt=0)
+    length_unit: Optional[LengthUnit] = None
+    width: Optional[float] = Field(None, gt=0)
+    width_unit: Optional[LengthUnit] = None
+
+    @model_validator(mode="after")
+    def check_fields_for_mode(self):
+        if self.pricing_mode == "quantity":
+            if self.quantity is None:
+                raise ValueError("quantity is required when pricing_mode is 'quantity'")
+        else:
+            if self.length is None or self.width is None:
+                raise ValueError(
+                    "length and width are required when pricing_mode is 'sq_inch' or 'sq_feet'"
+                )
+            if self.length_unit is None or self.width_unit is None:
+                raise ValueError(
+                    "length_unit and width_unit are required when pricing_mode is "
+                    "'sq_inch' or 'sq_feet'"
+                )
+        return self
 
 
 class SupplierProductCreate(SupplierProductBase):
@@ -51,13 +78,8 @@ class SupplierProductCreate(SupplierProductBase):
     product_id: int
 
 
-class SupplierProductUpdate(BaseModel):
-    """Used by the price-update endpoint. Either/both fields can be updated."""
-    total_price: Optional[float] = Field(None, gt=0)
-    total_length_or_quantity: Optional[float] = Field(None, gt=0)
-    changed_by: Optional[str] = Field(
-        None, description="Optional free-text name/label of who made this change"
-    )
+class SupplierProductUpdate(SupplierProductBase):
+    changed_by: Optional[str] = None
 
 
 class SupplierProductOut(BaseModel):
@@ -65,6 +87,11 @@ class SupplierProductOut(BaseModel):
     id: int
     supplier_id: int
     product_id: int
+    pricing_mode: str
+    length: Optional[float] = None
+    length_unit: Optional[str] = None
+    width: Optional[float] = None
+    width_unit: Optional[str] = None
     total_price: float
     total_length_or_quantity: float
     unit_price: float
@@ -90,13 +117,17 @@ class PriceHistoryOut(BaseModel):
     timestamp: datetime
 
 
-# ---------- Matrix View ----------
+# ---------- Matrix View (legacy, still used internally) ----------
 
 class MatrixCell(BaseModel):
-    """One supplier's offer for a given product row."""
     supplier_product_id: int
     supplier_id: int
     supplier_name: str
+    pricing_mode: str
+    length: Optional[float] = None
+    length_unit: Optional[str] = None
+    width: Optional[float] = None
+    width_unit: Optional[str] = None
     total_price: float
     total_length_or_quantity: float
     unit_price: float
@@ -110,9 +141,49 @@ class MatrixRow(BaseModel):
     department_id: int
     department_name: str
     cheapest_unit_price: Optional[float] = None
-    offers: List[MatrixCell] = []  # sorted ascending by unit_price
+    offers: List[MatrixCell] = []
 
 
 class MatrixResponse(BaseModel):
-    suppliers: List[SupplierOut]  # all suppliers present in this result set (for column headers)
+    suppliers: List[SupplierOut]
     rows: List[MatrixRow]
+
+
+# ---------- Navigation (Department -> Items -> Vendors drill-down) ----------
+
+class ItemSummaryOut(BaseModel):
+    """One row in the A-Z item list shown after picking a department."""
+    product_id: int
+    product_name: str
+    variant_code_or_size: Optional[str] = None
+    department_id: int
+    department_name: str
+    vendor_count: int
+    cheapest_unit_price: Optional[float] = None
+
+
+class DepartmentItemsResponse(BaseModel):
+    department: DepartmentOut
+    items: List[ItemSummaryOut]
+
+
+class VendorOfferOut(BaseModel):
+    """One vendor's offer for the selected item, in the A-Z vendor list."""
+    supplier_product_id: int
+    supplier_id: int
+    supplier_name: str
+    pricing_mode: str
+    length: Optional[float] = None
+    length_unit: Optional[str] = None
+    width: Optional[float] = None
+    width_unit: Optional[str] = None
+    total_price: float
+    total_length_or_quantity: float
+    unit_price: float
+    is_cheapest: bool = False
+
+
+class ItemVendorsResponse(BaseModel):
+    product: ProductOut
+    department_name: str
+    vendors: List[VendorOfferOut]

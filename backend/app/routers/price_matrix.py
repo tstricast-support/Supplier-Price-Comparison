@@ -21,9 +21,10 @@ def get_price_matrix(
     db: Session = Depends(get_db),
 ):
     """
-    Returns matrix data: rows = products, each row's `offers` = every supplier's
-    price for that product, sorted ascending by unit_price (cheapest first).
-    This is what powers the Matrix Comparison Table on the frontend.
+    Legacy full matrix view (kept for the Manage tab's product picker and for
+    anything else that still wants the flat table). The new Browse flow uses
+    the /api/departments/{id}/items and /api/items/{id}/vendors endpoints
+    in navigation.py instead.
     """
     query = db.query(models.Product).options(joinedload(models.Product.department))
 
@@ -53,8 +54,6 @@ def get_price_matrix(
             .filter(models.SupplierProduct.product_id == product.id)
             .all()
         )
-
-        # Sort ascending by unit_price -> cheapest option is first (index 0)
         sp_list_sorted = sorted(sp_list, key=lambda sp: sp.unit_price)
 
         offers = []
@@ -64,6 +63,11 @@ def get_price_matrix(
                     supplier_product_id=sp.id,
                     supplier_id=sp.supplier_id,
                     supplier_name=sp.supplier.name,
+                    pricing_mode=sp.pricing_mode,
+                    length=sp.length,
+                    length_unit=sp.length_unit,
+                    width=sp.width,
+                    width_unit=sp.width_unit,
                     total_price=sp.total_price,
                     total_length_or_quantity=sp.total_length_or_quantity,
                     unit_price=sp.unit_price,
@@ -83,9 +87,6 @@ def get_price_matrix(
             )
         )
 
-    # Rows themselves are sorted by their cheapest available unit price so that
-    # the best overall deals surface first in the table (nulls/last for products
-    # with no supplier offers yet).
     rows.sort(key=lambda r: (r.cheapest_unit_price is None, r.cheapest_unit_price or 0))
 
     return schemas.MatrixResponse(suppliers=supplier_out, rows=rows)

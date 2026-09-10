@@ -1,3 +1,4 @@
+from typing import Optional, Tuple
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -7,22 +8,53 @@ from app import models, schemas
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
+INCH_PER_UNIT = {
+    "in": 1.0,
+    "ft": 12.0,
+    "m": 39.3701,
+    "cm": 0.393701,
+}
+
+
+def _to_inches(value: float, unit: str) -> float:
+    return value * INCH_PER_UNIT.get(unit, 1.0)
+
+
+def _resolve_dimensions(
+    payload,
+) -> Tuple[float, Optional[float], Optional[str], Optional[float], Optional[str]]:
+    if payload.pricing_mode == "quantity":
+        return payload.quantity, None, None, None, None
+
+    length_in = _to_inches(payload.length, payload.length_unit)
+    width_in = _to_inches(payload.width, payload.width_unit)
+    area_sq_in = length_in * width_in
+
+    divisor = area_sq_in / 144.0 if payload.pricing_mode == "sq_feet" else area_sq_in
+
+    return divisor, payload.length, payload.length_unit, payload.width, payload.width_unit
+
+
 @router.post("/suppliers", response_model=schemas.SupplierOut)
 def create_supplier(payload: schemas.SupplierCreate, db: Session = Depends(get_db)):
-    if db.query(models.Supplier).filter(models.Supplier.name == payload.name).first():
-        raise HTTPException(status_code=400, detail="Supplier already exists")
-    supplier = models.Supplier(name=payload.name)
+    """Create a new vendor. Used both from Manage and from the inline
+    'Create vendor' button on the searchable vendor picker."""
+    existing = (
+        db.query(models.Supplier)
+        .filter(models.Supplier.name.ilike(payload.name.strip()))
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="Vendor already exists")
+    supplier = models.Supplier(name=payload.name.strip())
     db.add(supplier)
     db.commit()
     db.refresh(supplier)
     return supplier
 
+
 @router.delete("/suppliers/{supplier_id}")
 def delete_supplier(supplier_id: int, db: Session = Depends(get_db)):
-    """
-    Deletes a supplier and all of its price offerings (and their history)
-    via cascade. Irreversible — the frontend must confirm before calling this.
-    """
     supplier = db.query(models.Supplier).filter(models.Supplier.id == supplier_id).first()
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
@@ -42,12 +74,9 @@ def create_product(payload: schemas.ProductCreate, db: Session = Depends(get_db)
     db.refresh(product)
     return product
 
+
 @router.delete("/products/{product_id}")
 def delete_product(product_id: int, db: Session = Depends(get_db)):
-    """
-    Deletes a product and all of its supplier price offerings (and their
-    history) via cascade. Irreversible — the frontend must confirm before calling this.
-    """
     product = db.query(models.Product).filter(models.Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -58,7 +87,6 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
 
 @router.post("/supplier-products", response_model=schemas.SupplierProductOut)
 def create_supplier_product(payload: schemas.SupplierProductCreate, db: Session = Depends(get_db)):
-    """Create a new price offering (a new matrix cell) for a supplier+product pair."""
     existing = (
         db.query(models.SupplierProduct)
         .filter(
@@ -70,14 +98,21 @@ def create_supplier_product(payload: schemas.SupplierProductCreate, db: Session 
     if existing:
         raise HTTPException(
             status_code=400,
-            detail="This supplier already has a price for this product. Use PUT to update it.",
+            detail="This vendor already has a price for this item. Edit it instead of creating a new one.",
         )
+
+    total_len_or_qty, length, length_unit, width, width_unit = _resolve_dimensions(payload)
 
     sp = models.SupplierProduct(
         supplier_id=payload.supplier_id,
         product_id=payload.product_id,
+        pricing_mode=payload.pricing_mode,
+        length=length,
+        length_unit=length_unit,
+        width=width,
+        width_unit=width_unit,
         total_price=payload.total_price,
-        total_length_or_quantity=payload.total_length_or_quantity,
+        total_length_or_quantity=total_len_or_qty,
     )
     sp.unit_price = sp.compute_unit_price()
     db.add(sp)
@@ -92,26 +127,24 @@ def update_supplier_product(
     payload: schemas.SupplierProductUpdate,
     db: Session = Depends(get_db),
 ):
-    """
-    Update total_price and/or total_length_or_quantity for a supplier's price
-    on a product. Recomputes unit_price and automatically logs the change into
-    price_history. Open access — no login required.
-    """
     sp = db.query(models.SupplierProduct).filter(models.SupplierProduct.id == sp_id).first()
     if not sp:
         raise HTTPException(status_code=404, detail="Supplier-product entry not found")
 
     old_price = sp.total_price
 
-    if payload.total_price is not None:
-        sp.total_price = payload.total_price
-    if payload.total_length_or_quantity is not None:
-        sp.total_length_or_quantity = payload.total_length_or_quantity
+    total_len_or_qty, length, length_unit, width, width_unit = _resolve_dimensions(payload)
 
+    sp.pricing_mode = payload.pricing_mode
+    sp.length = length
+    sp.length_unit = length_unit
+    sp.width = width
+    sp.width_unit = width_unit
+    sp.total_price = payload.total_price
+    sp.total_length_or_quantity = total_len_or_qty
     sp.unit_price = sp.compute_unit_price()
 
-    # Only log history if the total_price actually changed
-    if payload.total_price is not None and payload.total_price != old_price:
+    if payload.total_price != old_price:
         history_entry = models.PriceHistory(
             supplier_id=sp.supplier_id,
             product_id=sp.product_id,
@@ -129,7 +162,6 @@ def update_supplier_product(
 
 @router.get("/supplier-products/{sp_id}/history", response_model=list[schemas.PriceHistoryOut])
 def get_price_history(sp_id: int, db: Session = Depends(get_db)):
-    """Audit trail of price changes for one product-supplier item."""
     sp = db.query(models.SupplierProduct).filter(models.SupplierProduct.id == sp_id).first()
     if not sp:
         raise HTTPException(status_code=404, detail="Supplier-product entry not found")

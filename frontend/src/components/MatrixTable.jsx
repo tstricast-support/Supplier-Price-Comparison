@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Search, History, Pencil, Loader2, Trophy } from 'lucide-react'
 import { getDepartments, getPriceMatrix } from '../api/endpoints'
-import { formatRs } from '../utils/currency'
+import { formatRs, formatMeasurement, unitSuffix } from '../utils/currency'
 import EditPriceModal from './EditPriceModal'
 import PriceHistoryModal from './PriceHistoryModal'
 
@@ -123,10 +123,12 @@ export default function MatrixTable() {
                           </div>
                           <div className="mt-1.5 text-lg font-bold text-green-700">
                             {formatRs(best.unit_price, 2)}
-                            <span className="ml-1 text-xs font-normal text-gray-500">/ unit</span>
+                            <span className="ml-1 text-xs font-normal text-gray-500">
+                              / {unitSuffix(best.pricing_mode)}
+                            </span>
                           </div>
                           <div className="mt-1 text-xs text-gray-500">
-                            Total {formatRs(best.total_price)} for {best.total_length_or_quantity} units
+                            Total {formatRs(best.total_price)} for {formatMeasurement(best)}
                           </div>
                         </div>
                       ) : (
@@ -156,11 +158,13 @@ export default function MatrixTable() {
                               )}
                             </div>
                             <div className="mt-1 text-xs text-gray-600">
-                              Total: {formatRs(offer.total_price)} for {offer.total_length_or_quantity} units
+                              Total: {formatRs(offer.total_price)} for {formatMeasurement(offer)}
                             </div>
                             <div className="text-sm font-bold text-gray-900">
                               {formatRs(offer.unit_price, 2)}{' '}
-                              <span className="text-xs font-normal text-gray-500">/ unit</span>
+                              <span className="text-xs font-normal text-gray-500">
+                                / {unitSuffix(offer.pricing_mode)}
+                              </span>
                             </div>
 
                             <div className="mt-2 flex gap-2">
@@ -182,6 +186,11 @@ export default function MatrixTable() {
                                     supplier_product_id: offer.supplier_product_id,
                                     total_price: offer.total_price,
                                     total_length_or_quantity: offer.total_length_or_quantity,
+                                    pricing_mode: offer.pricing_mode,
+                                    length: offer.length,
+                                    length_unit: offer.length_unit,
+                                    width: offer.width,
+                                    width_unit: offer.width_unit,
                                     productName: row.product_name,
                                     supplierName: offer.supplier_name,
                                   })
