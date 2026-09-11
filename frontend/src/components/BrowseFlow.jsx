@@ -1,6 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getDepartments, getDepartmentItems, getItemVendors } from '../api/endpoints'
+import {
+  getDepartments,
+  getDepartmentCategories,
+  getDepartmentCategoryItems,
+  getItemVendors,
+} from '../api/endpoints'
 import DepartmentGrid from './DepartmentGrid'
+import DepartmentCategoryList from './DepartmentCategoryList'
 import ItemList from './ItemList'
 import VendorList from './VendorList'
 import EditPriceModal from './EditPriceModal'
@@ -10,17 +16,21 @@ import EditItemModal from './EditItemModal'
 
 /**
  * The main Browse experience:
- *   Departments -> Items (A-Z) -> Vendors (A-Z) -> Price Edit / History
+ *   Departments -> Categories (A-Z) -> Items (A-Z) -> Vendors (A-Z) -> Price Edit / History
  * Each step is its own screen (not nested accordions) so it works well on
  * a small phone screen - one focused list at a time, with a back button.
  */
 export default function BrowseFlow({ refreshKey }) {
-  const [step, setStep] = useState('departments') // 'departments' | 'items' | 'vendors'
+  const [step, setStep] = useState('departments') // 'departments' | 'categories' | 'items' | 'vendors'
 
   const [departments, setDepartments] = useState([])
   const [loadingDepartments, setLoadingDepartments] = useState(true)
 
   const [activeDepartment, setActiveDepartment] = useState(null)
+  const [categories, setCategories] = useState([])
+  const [loadingCategories, setLoadingCategories] = useState(false)
+
+  const [activeCategory, setActiveCategory] = useState(null)
   const [items, setItems] = useState([])
   const [loadingItems, setLoadingItems] = useState(false)
 
@@ -45,9 +55,16 @@ export default function BrowseFlow({ refreshKey }) {
     loadDepartments()
   }, [loadDepartments, refreshKey])
 
-  const loadItems = useCallback((departmentId) => {
+  const loadCategories = useCallback((departmentId) => {
+    setLoadingCategories(true)
+    getDepartmentCategories(departmentId)
+      .then(({ data }) => setCategories(data))
+      .finally(() => setLoadingCategories(false))
+  }, [])
+
+  const loadItems = useCallback((departmentId, categoryId) => {
     setLoadingItems(true)
-    getDepartmentItems(departmentId)
+    getDepartmentCategoryItems(departmentId, categoryId)
       .then(({ data }) => setItems(data.items))
       .finally(() => setLoadingItems(false))
   }, [])
@@ -61,15 +78,22 @@ export default function BrowseFlow({ refreshKey }) {
 
   // Re-fetch whatever screen is currently active after an edit/create elsewhere
   useEffect(() => {
-    if (step === 'items' && activeDepartment) loadItems(activeDepartment.id)
+    if (step === 'categories' && activeDepartment) loadCategories(activeDepartment.id)
+    if (step === 'items' && activeDepartment && activeCategory) loadItems(activeDepartment.id, activeCategory.category_id)
     if (step === 'vendors' && activeItem) loadVendors(activeItem.id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey])
 
   const handleSelectDepartment = (dept) => {
     setActiveDepartment(dept)
+    setStep('categories')
+    loadCategories(dept.id)
+  }
+
+  const handleSelectCategory = (category) => {
+    setActiveCategory(category)
     setStep('items')
-    loadItems(dept.id)
+    loadItems(activeDepartment.id, category.category_id)
   }
 
   const handleSelectItem = (item) => {
@@ -87,11 +111,17 @@ export default function BrowseFlow({ refreshKey }) {
   const handleBackToDepartments = () => {
     setStep('departments')
     setActiveDepartment(null)
+    setCategories([])
+  }
+
+  const handleBackToCategories = () => {
+    setStep('categories')
+    setActiveCategory(null)
     setItems([])
   }
 
   const handleBackToItems = () => {
-    setStep('vendors' === step ? 'items' : step)
+    setStep('items')
     setActiveItem(null)
     setVendors([])
   }
@@ -106,12 +136,22 @@ export default function BrowseFlow({ refreshKey }) {
         <DepartmentGrid departments={departments} loading={loadingDepartments} onSelect={handleSelectDepartment} />
       )}
 
-      {step === 'items' && activeDepartment && (
-        <ItemList
+      {step === 'categories' && activeDepartment && (
+        <DepartmentCategoryList
           department={activeDepartment}
+          categories={categories}
+          loading={loadingCategories}
+          onBack={handleBackToDepartments}
+          onSelect={handleSelectCategory}
+        />
+      )}
+
+      {step === 'items' && activeDepartment && activeCategory && (
+        <ItemList
+          department={{ ...activeDepartment, name: `${activeDepartment.name} / ${activeCategory.category_name}` }}
           items={items}
           loading={loadingItems}
-          onBack={handleBackToDepartments}
+          onBack={handleBackToCategories}
           onSelect={handleSelectItem}
           onEdit={(item) => setEditingItem(item)}
         />
@@ -190,11 +230,10 @@ export default function BrowseFlow({ refreshKey }) {
           onClose={() => setEditingItem(null)}
           onSaved={() => {
             setEditingItem(null)
-            if (activeDepartment) loadItems(activeDepartment.id)
+            if (activeDepartment && activeCategory) loadItems(activeDepartment.id, activeCategory.category_id)
           }}
         />
       )}
-
     </div>
   )
 }

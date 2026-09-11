@@ -60,6 +60,90 @@ def get_department_items(department_id: int, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/departments/{department_id}/categories", response_model=list[schemas.DepartmentCategoryOut])
+def get_department_categories(department_id: int, db: Session = Depends(get_db)):
+    """Categories that have at least one item in this department, A-Z,
+    with item counts. Powers Home's Department -> Category step."""
+    department = db.query(models.Department).filter(models.Department.id == department_id).first()
+    if not department:
+        raise HTTPException(status_code=404, detail="Department not found")
+
+    products = (
+        db.query(models.Product)
+        .options(joinedload(models.Product.category))
+        .filter(models.Product.department_id == department_id)
+        .all()
+    )
+
+    counts = {}
+    for p in products:
+        if not p.category:
+            continue
+        if p.category.id not in counts:
+            counts[p.category.id] = {
+                "category_id": p.category.id,
+                "category_name": p.category.name,
+                "item_count": 0,
+            }
+        counts[p.category.id]["item_count"] += 1
+
+    return sorted(counts.values(), key=lambda c: c["category_name"].lower())
+
+
+@router.get(
+    "/departments/{department_id}/categories/{category_id}/items",
+    response_model=schemas.DepartmentCategoryItemsResponse,
+)
+def get_department_category_items(department_id: int, category_id: int, db: Session = Depends(get_db)):
+    """Items within one category, scoped to one department, A-Z. Powers
+    Home's Category -> Items step."""
+    department = db.query(models.Department).filter(models.Department.id == department_id).first()
+    if not department:
+        raise HTTPException(status_code=404, detail="Department not found")
+
+    category = db.query(models.Category).filter(models.Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    products = (
+        db.query(models.Product)
+        .filter(
+            models.Product.department_id == department_id,
+            models.Product.category_id == category_id,
+        )
+        .order_by(models.Product.name, models.Product.variant_code_or_size)
+        .all()
+    )
+
+    items = []
+    for product in products:
+        sp_list = (
+            db.query(models.SupplierProduct)
+            .filter(models.SupplierProduct.product_id == product.id)
+            .all()
+        )
+        cheapest = min((sp.unit_price for sp in sp_list), default=None)
+        items.append(
+            schemas.ItemSummaryOut(
+                product_id=product.id,
+                product_name=product.name,
+                variant_code_or_size=product.variant_code_or_size,
+                department_id=department.id,
+                department_name=department.name,
+                category_id=category.id,
+                category_name=category.name,
+                vendor_count=len(sp_list),
+                cheapest_unit_price=cheapest,
+            )
+        )
+
+    return schemas.DepartmentCategoryItemsResponse(
+        department=schemas.DepartmentOut.model_validate(department),
+        category=schemas.CategoryOut.model_validate(category),
+        items=items,
+    )
+
+
 @router.get("/items/{product_id}/vendors", response_model=schemas.ItemVendorsResponse)
 def get_item_vendors(product_id: int, db: Session = Depends(get_db)):
     """Single-department vendor list (used by Home / BrowseFlow, where the

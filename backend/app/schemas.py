@@ -242,6 +242,17 @@ class DepartmentItemsResponse(BaseModel):
     department: DepartmentOut
     items: List[ItemSummaryOut]
 
+class DepartmentCategoryOut(BaseModel):
+    category_id: int
+    category_name: str
+    item_count: int
+
+
+class DepartmentCategoryItemsResponse(BaseModel):
+    department: DepartmentOut
+    category: CategoryOut
+    items: List[ItemSummaryOut]
+    
 
 class VendorOfferOut(BaseModel):
     supplier_product_id: int

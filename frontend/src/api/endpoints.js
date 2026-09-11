@@ -3,6 +3,12 @@ import api from './client'
 // ---- Departments ----
 export const getDepartments = () => api.get('/api/departments')
 
+export const getDepartmentCategories = (departmentId) =>
+  api.get(`/api/departments/${departmentId}/categories`)
+
+export const getDepartmentCategoryItems = (departmentId, categoryId) =>
+  api.get(`/api/departments/${departmentId}/categories/${categoryId}/items`)
+
 // ---- Browse flow: Department -> Items -> Vendors ----
 
 export const getDepartmentItems = (departmentId) =>
