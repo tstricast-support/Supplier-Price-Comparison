@@ -1,21 +1,31 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getSuppliers, getSupplierCategories, getSupplierCategoryItems } from '../api/endpoints'
+import {
+  getSuppliers,
+  getSupplierCategories,
+  getSupplierCategoryItems,
+  getSupplierProducts,
+  getDepartments,
+} from '../api/endpoints'
 import VendorGrid from './VendorGrid'
 import VendorCategoryList from './VendorCategoryList'
 import VendorCategoryItemList from './VendorCategoryItemList'
 import EditPriceModal from './EditPriceModal'
 import PriceHistoryModal from './PriceHistoryModal'
+import { printVendorItemList, printVendorCategoryItemList } from '../utils/printVendorList'
 
 /**
  * Vendor View: Vendors (A-Z, searchable) -> Categories -> Items.
  * Each item already carries this vendor's own price, so Edit/History wire
- * straight to it - no separate vendor-picking step needed at the leaf.
+ * straight to it. Includes an A4-printable price list, either for the
+ * whole vendor (all categories) or just the category currently open.
  */
 export default function SupplierView() {
   const [step, setStep] = useState('vendors') // 'vendors' | 'categories' | 'items'
 
   const [suppliers, setSuppliers] = useState([])
   const [loadingSuppliers, setLoadingSuppliers] = useState(true)
+
+  const [departmentsById, setDepartmentsById] = useState({})
 
   const [activeSupplier, setActiveSupplier] = useState(null)
   const [categories, setCategories] = useState([])
@@ -28,12 +38,16 @@ export default function SupplierView() {
   const [editCell, setEditCell] = useState(null)
   const [historyCell, setHistoryCell] = useState(null)
 
-  const loadSuppliers = useCallback(() => {
-    setLoadingSuppliers(true)
-    getSuppliers().then(({ data }) => setSuppliers(data)).finally(() => setLoadingSuppliers(false))
-  }, [])
+  const [printingAll, setPrintingAll] = useState(false)
 
-  useEffect(() => { loadSuppliers() }, [loadSuppliers])
+  useEffect(() => {
+    getSuppliers().then(({ data }) => setSuppliers(data)).finally(() => setLoadingSuppliers(false))
+    getDepartments().then(({ data }) => {
+      const map = {}
+      data.forEach((d) => { map[d.id] = d.name })
+      setDepartmentsById(map)
+    })
+  }, [])
 
   const loadCategories = useCallback((supplierId) => {
     setLoadingCategories(true)
@@ -70,6 +84,24 @@ export default function SupplierView() {
     if (activeSupplier && activeCategory) loadItems(activeSupplier.id, activeCategory.id)
   }
 
+  const handlePrintAll = async () => {
+    if (!activeSupplier) return
+    setPrintingAll(true)
+    try {
+      const { data } = await getSupplierProducts(activeSupplier.id)
+      printVendorItemList(activeSupplier.name, data, departmentsById)
+    } catch {
+      alert('Failed to load items for printing. Please try again.')
+    } finally {
+      setPrintingAll(false)
+    }
+  }
+
+  const handlePrintCategory = () => {
+    if (!activeSupplier || !activeCategory) return
+    printVendorCategoryItemList(activeSupplier.name, activeCategory.name, items)
+  }
+
   return (
     <div>
       {step === 'vendors' && (
@@ -83,6 +115,8 @@ export default function SupplierView() {
           loading={loadingCategories}
           onBack={handleBackToVendors}
           onSelect={handleSelectCategory}
+          onPrint={handlePrintAll}
+          printing={printingAll}
         />
       )}
 
@@ -93,6 +127,7 @@ export default function SupplierView() {
           items={items}
           loading={loadingItems}
           onBack={handleBackToCategories}
+          onPrint={handlePrintCategory}
           onEdit={(item) =>
             setEditCell({
               supplier_product_id: item.supplier_product_id,

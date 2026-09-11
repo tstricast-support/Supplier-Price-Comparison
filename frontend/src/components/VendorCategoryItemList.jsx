@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react'
-import { Search, ChevronLeft, Package, Pencil, History, Layers } from 'lucide-react'
+import { Search, ChevronLeft, Package, Pencil, History, Layers, Printer } from 'lucide-react'
 import { formatRs, formatMeasurement, unitSuffix } from '../utils/currency'
 
 /** Step 3 of Vendor View: this vendor's items within the chosen category. */
-export default function VendorCategoryItemList({ supplier, category, items, loading, onBack, onEdit, onHistory }) {
+export default function VendorCategoryItemList({ supplier, category, items, loading, onBack, onEdit, onHistory, onPrint }) {
   const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => {
@@ -19,12 +19,22 @@ export default function VendorCategoryItemList({ supplier, category, items, load
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2">
-        <button onClick={onBack} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100">
-          <ChevronLeft size={16} /> {supplier.name}
-        </button>
-        <span className="text-gray-300">/</span>
-        <span className="text-sm font-semibold text-gray-900">{category.name}</span>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={onBack} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100">
+            <ChevronLeft size={16} /> {supplier.name}
+          </button>
+          <span className="text-gray-300">/</span>
+          <span className="text-sm font-semibold text-gray-900">{category.name}</span>
+        </div>
+        {onPrint && (
+          <button
+            onClick={onPrint}
+            className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50"
+          >
+            <Printer size={14} /> Print This Category
+          </button>
+        )}
       </div>
 
       <div className="relative mb-4">

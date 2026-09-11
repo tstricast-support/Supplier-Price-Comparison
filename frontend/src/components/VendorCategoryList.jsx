@@ -1,15 +1,26 @@
-import { ChevronLeft, ChevronRight, Tag } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Tag, Printer } from 'lucide-react'
 
 /** Step 2 of Vendor View: categories this vendor has items in, A-Z. */
-export default function VendorCategoryList({ supplier, categories, loading, onBack, onSelect }) {
+export default function VendorCategoryList({ supplier, categories, loading, onBack, onSelect, onPrint, printing }) {
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2">
-        <button onClick={onBack} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100">
-          <ChevronLeft size={16} /> Vendors
-        </button>
-        <span className="text-gray-300">/</span>
-        <span className="text-sm font-semibold text-gray-900">{supplier.name}</span>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={onBack} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100">
+            <ChevronLeft size={16} /> Vendors
+          </button>
+          <span className="text-gray-300">/</span>
+          <span className="text-sm font-semibold text-gray-900">{supplier.name}</span>
+        </div>
+        {onPrint && (
+          <button
+            onClick={onPrint}
+            disabled={printing}
+            className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+          >
+            <Printer size={14} /> {printing ? 'Preparing...' : 'Print Item List'}
+          </button>
+        )}
       </div>
 
       {loading && <p className="py-10 text-center text-sm text-gray-500">Loading categories...</p>}
