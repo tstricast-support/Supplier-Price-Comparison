@@ -1,26 +1,56 @@
-import { useState } from 'react'
-import { X, Save } from 'lucide-react'
-import { updateProduct } from '../api/endpoints'
+import { useState, useEffect, useMemo } from 'react'
+import { X, Save, Tag, PlusCircle } from 'lucide-react'
+import { getCategories, updateProduct } from '../api/endpoints'
+import SearchableSelect from './SearchableSelect'
+import QuickCreateCategoryModal from './QuickCreateCategoryModal'
 
 /**
- * Renames an item (and/or edits its variant/size). `item` = { product_id,
- * product_name, variant_code_or_size }, same shape ItemList passes around.
+ * Renames an item (and/or edits its variant/size/category). `item` = {
+ * product_id, product_name, variant_code_or_size, category_id,
+ * category_name }, matching what ItemList now passes through (it gets
+ * this shape from ItemSummaryOut).
  */
 export default function EditItemModal({ item, onClose, onSaved }) {
   const [name, setName] = useState(item.product_name)
   const [variant, setVariant] = useState(item.variant_code_or_size || '')
+  const [categoryId, setCategoryId] = useState(item.category_id ? String(item.category_id) : '')
+
+  const [categories, setCategories] = useState([])
+  const [showCreateCategory, setShowCreateCategory] = useState(false)
+  const [quickCategorySeed, setQuickCategorySeed] = useState('')
+
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState(null)
+
+  useEffect(() => {
+    getCategories().then(({ data }) => setCategories(data))
+  }, [])
+
+  const categoryOptions = useMemo(
+    () => categories.map((c) => ({ id: c.id, label: c.name })),
+    [categories]
+  )
+
+  const handleCategoryCreated = (category) => {
+    setCategories((prev) => [...prev, category].sort((a, b) => a.name.localeCompare(b.name)))
+    setCategoryId(String(category.id))
+    setShowCreateCategory(false)
+  }
 
   const handleSave = async (e) => {
     e.preventDefault()
     if (!name.trim()) return
+    if (!categoryId) {
+      setErr('Select or create a category.')
+      return
+    }
     setSaving(true)
     setErr(null)
     try {
       await updateProduct(item.product_id, {
         name: name.trim(),
         variant_code_or_size: variant.trim() || null,
+        category_id: Number(categoryId),
       })
       onSaved()
     } catch (error) {
@@ -64,6 +94,34 @@ export default function EditItemModal({ item, onClose, onSaved }) {
             />
           </div>
 
+          <div>
+            <label className="mb-1 flex items-center justify-between text-xs font-medium text-gray-600">
+              <span>Category</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickCategorySeed('')
+                  setShowCreateCategory(true)
+                }}
+                className="flex items-center gap-1 text-brand-600 hover:text-brand-700"
+              >
+                <PlusCircle size={13} /> Create category
+              </button>
+            </label>
+            <SearchableSelect
+              options={categoryOptions}
+              value={categoryId}
+              onChange={setCategoryId}
+              placeholder="search categories..."
+              icon={<Tag size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />}
+              onCreateNew={(typed) => {
+                setQuickCategorySeed(typed)
+                setShowCreateCategory(true)
+              }}
+              createLabel="+ Create category"
+            />
+          </div>
+
           {err && <p className="text-sm text-red-600">{err}</p>}
 
           <button
@@ -76,6 +134,14 @@ export default function EditItemModal({ item, onClose, onSaved }) {
           </button>
         </form>
       </div>
+
+      {showCreateCategory && (
+        <QuickCreateCategoryModal
+          initialName={quickCategorySeed}
+          onClose={() => setShowCreateCategory(false)}
+          onCreated={handleCategoryCreated}
+        />
+      )}
     </div>
   )
 }

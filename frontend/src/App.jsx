@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { LayoutGrid, Building2, Settings, PlusCircle } from 'lucide-react'
+import { LayoutGrid, Building2, Settings, PlusCircle ,Tag} from 'lucide-react'
 import BrowseFlow from './components/BrowseFlow'
 import SupplierView from './components/SupplierView'
 import AdminPanel from './components/AdminPanel'
 import CreateProductModal from './components/CreateProductModal'
+import ItemsFlow from './components/ItemsFlow'
 
 export default function App() {
   const [tab, setTab] = useState('browse') // 'browse' | 'supplier' | 'manage'
@@ -34,10 +35,13 @@ export default function App() {
 
         <div className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 sm:px-6">
           <TabButton active={tab === 'browse'} onClick={() => setTab('browse')} icon={<LayoutGrid size={15} />}>
-            Browse
+            Home
+          </TabButton>
+          <TabButton active={tab === 'items'} onClick={() => setTab('items')} icon={<Tag size={15} />}>
+            Items
           </TabButton>
           <TabButton active={tab === 'supplier'} onClick={() => setTab('supplier')} >
-            Vendor View
+            Vendors
           </TabButton>
           <TabButton active={tab === 'manage'} onClick={() => setTab('manage')} icon={<Settings size={15} />}>
             Manage
@@ -47,6 +51,7 @@ export default function App() {
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
         {tab === 'browse' && <BrowseFlow refreshKey={refreshKey} />}
+        {tab === 'items' && <ItemsFlow refreshKey={refreshKey} />}
         {tab === 'supplier' && <SupplierView />}
         {tab === 'manage' && <AdminPanel />}
       </main>

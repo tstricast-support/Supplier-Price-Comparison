@@ -12,6 +12,20 @@ class DepartmentOut(BaseModel):
     code: Optional[str] = None
 
 
+# ---------- Categories ----------
+
+class CategoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+
+
+class CategoryCreate(BaseModel):
+    name: str
+
+class CategoryUpdate(BaseModel):
+    name: str
+
 # ---------- Products ----------
 
 class ProductOut(BaseModel):
@@ -20,16 +34,37 @@ class ProductOut(BaseModel):
     name: str
     variant_code_or_size: Optional[str] = None
     department_id: int
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
 
 
 class ProductCreate(BaseModel):
     name: str
     variant_code_or_size: Optional[str] = None
     department_id: int
+    category_id: int
+
 
 class ProductUpdate(BaseModel):
     name: str
     variant_code_or_size: Optional[str] = None
+    category_id: int
+
+
+class ProductSiblingOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    variant_code_or_size: Optional[str] = None
+    department_id: int
+    department_name: str
+
+
+class VendorSiblingOut(BaseModel):
+    supplier_product_id: int
+    product_id: int
+    department_id: int
+    department_name: str
 
 
 # ---------- Suppliers (Vendors) ----------
@@ -42,6 +77,40 @@ class SupplierOut(BaseModel):
 
 class SupplierCreate(BaseModel):
     name: str
+
+class SupplierUpdate(BaseModel):
+    name: str
+
+
+
+
+class SupplierCategoryOut(BaseModel):
+    category_id: int
+    category_name: str
+    item_count: int
+
+
+class SupplierCategoryItemOut(BaseModel):
+    supplier_product_id: int
+    product_id: int
+    product_name: str
+    variant_code_or_size: Optional[str] = None
+    department_id: int
+    department_name: str
+    pricing_mode: str
+    length: Optional[float] = None
+    length_unit: Optional[str] = None
+    width: Optional[float] = None
+    width_unit: Optional[str] = None
+    total_price: float
+    total_length_or_quantity: float
+    unit_price: float
+
+
+class SupplierCategoryItemsResponse(BaseModel):
+    supplier: SupplierOut
+    category: CategoryOut
+    items: List[SupplierCategoryItemOut]
 
 
 # ---------- SupplierProduct (matrix cell / vendor offer) ----------
@@ -144,6 +213,8 @@ class MatrixRow(BaseModel):
     variant_code_or_size: Optional[str] = None
     department_id: int
     department_name: str
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
     cheapest_unit_price: Optional[float] = None
     offers: List[MatrixCell] = []
 
@@ -156,12 +227,13 @@ class MatrixResponse(BaseModel):
 # ---------- Navigation (Department -> Items -> Vendors drill-down) ----------
 
 class ItemSummaryOut(BaseModel):
-    """One row in the A-Z item list shown after picking a department."""
     product_id: int
     product_name: str
     variant_code_or_size: Optional[str] = None
     department_id: int
     department_name: str
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
     vendor_count: int
     cheapest_unit_price: Optional[float] = None
 
@@ -172,7 +244,6 @@ class DepartmentItemsResponse(BaseModel):
 
 
 class VendorOfferOut(BaseModel):
-    """One vendor's offer for the selected item, in the A-Z vendor list."""
     supplier_product_id: int
     supplier_id: int
     supplier_name: str
@@ -191,3 +262,43 @@ class ItemVendorsResponse(BaseModel):
     product: ProductOut
     department_name: str
     vendors: List[VendorOfferOut]
+
+
+# ---------- Items Tab (Category -> unique items across departments -> merged vendors) ----------
+
+class CategoryItemOut(BaseModel):
+    product_id: int
+    product_name: str
+    variant_code_or_size: Optional[str] = None
+    department_count: int
+    vendor_count: int
+    cheapest_unit_price: Optional[float] = None
+
+
+class CategoryItemsResponse(BaseModel):
+    category: CategoryOut
+    items: List[CategoryItemOut]
+
+
+class MergedVendorOfferOut(BaseModel):
+    supplier_product_id: int
+    supplier_id: int
+    supplier_name: str
+    product_id: int
+    department_id: int
+    department_name: str
+    pricing_mode: str
+    length: Optional[float] = None
+    length_unit: Optional[str] = None
+    width: Optional[float] = None
+    width_unit: Optional[str] = None
+    total_price: float
+    total_length_or_quantity: float
+    unit_price: float
+    is_cheapest: bool = False
+
+
+class ItemAllVendorsResponse(BaseModel):
+    product_name: str
+    variant_code_or_size: Optional[str] = None
+    vendors: List[MergedVendorOfferOut]

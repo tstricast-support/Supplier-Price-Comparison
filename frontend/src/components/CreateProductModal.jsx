@@ -1,24 +1,38 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X, PlusCircle, Building2, CheckCircle2, AlertCircle } from 'lucide-react'
-import { getDepartments, getSuppliers, createProduct, createSupplierProduct } from '../api/endpoints'
+import { X, PlusCircle, Building2, Tag, CheckCircle2, AlertCircle } from 'lucide-react'
+import {
+  getDepartments,
+  getSuppliers,
+  getCategories,
+  createProduct,
+  createSupplierProduct,
+} from '../api/endpoints'
 import SearchableSelect from './SearchableSelect'
 import QuickCreateVendorModal from './QuickCreateVendorModal'
+import QuickCreateCategoryModal from './QuickCreateCategoryModal'
 import { PricingModePicker, DimensionField, toInches } from './PricingFields'
 
 /**
  * "+ New Product" flow, reachable from the nav bar on every screen.
  * Fields: item name, variant/size (optional), department(s) [checkboxes],
- * vendor [searchable select w/ inline "create vendor"], pricing type,
- * total price. Saving creates the product in every selected department and
- * one price entry per department, all against the chosen vendor.
+ * category [searchable select w/ inline "create category"], vendor
+ * [searchable select w/ inline "create vendor"], pricing type, total price.
+ * Saving creates the product in every selected department and one price
+ * entry per department, all against the chosen vendor and category.
  */
 export default function CreateProductModal({ onClose, onCreated }) {
   const [departments, setDepartments] = useState([])
   const [vendors, setVendors] = useState([])
+  const [categories, setCategories] = useState([])
 
   const [itemName, setItemName] = useState('')
   const [variant, setVariant] = useState('')
   const [departmentIds, setDepartmentIds] = useState([])
+
+  const [categoryId, setCategoryId] = useState('')
+  const [showCreateCategory, setShowCreateCategory] = useState(false)
+  const [quickCategorySeed, setQuickCategorySeed] = useState('')
+
   const [vendorId, setVendorId] = useState('')
   const [showCreateVendor, setShowCreateVendor] = useState(false)
   const [quickVendorSeed, setQuickVendorSeed] = useState('')
@@ -37,11 +51,17 @@ export default function CreateProductModal({ onClose, onCreated }) {
   useEffect(() => {
     getDepartments().then(({ data }) => setDepartments(data))
     getSuppliers().then(({ data }) => setVendors(data))
+    getCategories().then(({ data }) => setCategories(data))
   }, [])
 
   const vendorOptions = useMemo(
     () => vendors.map((v) => ({ id: v.id, label: v.name })),
     [vendors]
+  )
+
+  const categoryOptions = useMemo(
+    () => categories.map((c) => ({ id: c.id, label: c.name })),
+    [categories]
   )
 
   const toggleDepartment = (id) => {
@@ -70,10 +90,20 @@ export default function CreateProductModal({ onClose, onCreated }) {
     setShowCreateVendor(false)
   }
 
+  const handleCategoryCreated = (category) => {
+    setCategories((prev) => [...prev, category].sort((a, b) => a.name.localeCompare(b.name)))
+    setCategoryId(String(category.id))
+    setShowCreateCategory(false)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (departmentIds.length === 0) {
       setNotice({ type: 'error', message: 'Select at least one department.' })
+      return
+    }
+    if (!categoryId) {
+      setNotice({ type: 'error', message: 'Select or create a category.' })
       return
     }
     if (!vendorId) {
@@ -96,6 +126,7 @@ export default function CreateProductModal({ onClose, onCreated }) {
             name: itemName.trim(),
             variant_code_or_size: variant.trim() || null,
             department_id: Number(deptId),
+            category_id: Number(categoryId),
           })
         )
       )
@@ -219,6 +250,34 @@ export default function CreateProductModal({ onClose, onCreated }) {
 
           <div>
             <label className="mb-1 flex items-center justify-between text-xs font-medium text-gray-600">
+              <span>Category</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickCategorySeed('')
+                  setShowCreateCategory(true)
+                }}
+                className="flex items-center gap-1 text-brand-600 hover:text-brand-700"
+              >
+                <PlusCircle size={13} /> CREATE NEW CATEGORY
+              </button>
+            </label>
+            <SearchableSelect
+              options={categoryOptions}
+              value={categoryId}
+              onChange={setCategoryId}
+              placeholder="search categories..."
+              icon={<Tag size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />}
+              onCreateNew={(typed) => {
+                setQuickCategorySeed(typed)
+                setShowCreateCategory(true)
+              }}
+              createLabel="CREATE NEW CATEGORY"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 flex items-center justify-between text-xs font-medium text-gray-600">
               <span>Vendor</span>
               <button
                 type="button"
@@ -306,6 +365,14 @@ export default function CreateProductModal({ onClose, onCreated }) {
           initialName={quickVendorSeed}
           onClose={() => setShowCreateVendor(false)}
           onCreated={handleVendorCreated}
+        />
+      )}
+
+      {showCreateCategory && (
+        <QuickCreateCategoryModal
+          initialName={quickCategorySeed}
+          onClose={() => setShowCreateCategory(false)}
+          onCreated={handleCategoryCreated}
         />
       )}
     </div>

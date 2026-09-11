@@ -73,7 +73,13 @@ export default function BrowseFlow({ refreshKey }) {
   }
 
   const handleSelectItem = (item) => {
-    setActiveItem({ id: item.product_id, name: item.product_name, variant_code_or_size: item.variant_code_or_size })
+    setActiveItem({
+      id: item.product_id,
+      name: item.product_name,
+      variant_code_or_size: item.variant_code_or_size,
+      category_id: item.category_id,
+      category_name: item.category_name,
+    })
     setStep('vendors')
     loadVendors(item.product_id)
   }
@@ -120,19 +126,21 @@ export default function BrowseFlow({ refreshKey }) {
           onBack={handleBackToItems}
           onAddVendor={() => setAddingVendor(true)}
           onEdit={(v) =>
-            setEditCell({
-              supplier_product_id: v.supplier_product_id,
-              total_price: v.total_price,
-              total_length_or_quantity: v.total_length_or_quantity,
-              pricing_mode: v.pricing_mode,
-              length: v.length,
-              length_unit: v.length_unit,
-              width: v.width,
-              width_unit: v.width_unit,
-              productName: activeItem.name,
-              supplierName: v.supplier_name,
-            })
-          }
+              setEditCell({
+                supplier_product_id: v.supplier_product_id,
+                product_id: activeItem.id,
+                supplier_id: v.supplier_id,
+                total_price: v.total_price,
+                total_length_or_quantity: v.total_length_or_quantity,
+                pricing_mode: v.pricing_mode,
+                length: v.length,
+                length_unit: v.length_unit,
+                width: v.width,
+                width_unit: v.width_unit,
+                productName: activeItem.name,
+                supplierName: v.supplier_name,
+              })
+            }
           onHistory={(v) =>
             setHistoryCell({
               supplier_product_id: v.supplier_product_id,

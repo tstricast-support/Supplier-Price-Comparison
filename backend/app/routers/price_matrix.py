@@ -13,6 +13,10 @@ router = APIRouter(prefix="/api", tags=["price-matrix"])
 def list_departments(db: Session = Depends(get_db)):
     return db.query(models.Department).order_by(models.Department.name).all()
 
+@router.get("/categories", response_model=list[schemas.CategoryOut])
+def list_categories(db: Session = Depends(get_db)):
+    return db.query(models.Category).order_by(models.Category.name).all()
+
 
 @router.get("/price-matrix", response_model=schemas.MatrixResponse)
 def get_price_matrix(
@@ -26,7 +30,9 @@ def get_price_matrix(
     the /api/departments/{id}/items and /api/items/{id}/vendors endpoints
     in navigation.py instead.
     """
-    query = db.query(models.Product).options(joinedload(models.Product.department))
+    query = db.query(models.Product).options(
+        joinedload(models.Product.department),
+        joinedload(models.Product.category),)
 
     if department_id:
         query = query.filter(models.Product.department_id == department_id)
@@ -82,6 +88,8 @@ def get_price_matrix(
                 variant_code_or_size=product.variant_code_or_size,
                 department_id=product.department_id,
                 department_name=product.department.name,
+                category_id=product.category_id,
+                category_name=product.category.name if product.category else None,
                 cheapest_unit_price=offers[0].unit_price if offers else None,
                 offers=offers,
             )

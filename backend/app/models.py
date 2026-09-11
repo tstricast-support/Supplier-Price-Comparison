@@ -19,6 +19,15 @@ class Department(Base):
     products = relationship("Product", back_populates="department", cascade="all, delete-orphan")
 
 
+class Category(Base):
+    __tablename__ = "categories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), unique=True, nullable=False, index=True)
+
+    products = relationship("Product", back_populates="category")
+
+
 class Product(Base):
     __tablename__ = "products"
 
@@ -26,8 +35,12 @@ class Product(Base):
     name = Column(String(255), nullable=False, index=True)
     variant_code_or_size = Column(String(100), nullable=True)
     department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=False)
+    # Nullable at the DB level so existing rows don't break; required going
+    # forward via the ProductCreate schema (see below).
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
 
     department = relationship("Department", back_populates="products")
+    category = relationship("Category", back_populates="products")
     supplier_products = relationship(
         "SupplierProduct", back_populates="product", cascade="all, delete-orphan"
     )
@@ -36,6 +49,7 @@ class Product(Base):
         UniqueConstraint("name", "variant_code_or_size", "department_id", name="uq_product_variant_dept"),
     )
 
+    
 
 class Supplier(Base):
     __tablename__ = "suppliers"

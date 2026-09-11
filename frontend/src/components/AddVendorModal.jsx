@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X, PlusCircle, Building2, AlertCircle } from 'lucide-react'
-import { getSuppliers, createSupplierProduct } from '../api/endpoints'
+import { X, PlusCircle, Building2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { getSuppliers, createSupplierProduct, getProductSiblings } from '../api/endpoints'
 import SearchableSelect from './SearchableSelect'
 import QuickCreateVendorModal from './QuickCreateVendorModal'
+import ConfirmDialog from './ConfirmDialog'
 import { PricingModePicker, DimensionField, toInches } from './PricingFields'
 
 /**
@@ -14,6 +15,12 @@ import { PricingModePicker, DimensionField, toInches } from './PricingFields'
  * `item` = { id, name, variant_code_or_size }
  * `existingVendorIds` = supplier ids this item already has a price from,
  * so they're filtered out of the picker (edit that price instead).
+ *
+ * After saving, if this same item (same name + variant) also exists under
+ * other departments (created together via the multi-department "New
+ * Product" form), asks - one department at a time - whether to add this
+ * same vendor's price there too, instead of silently leaving those
+ * departments without it.
  */
 export default function AddVendorModal({ item, existingVendorIds = [], onClose, onCreated }) {
   const [vendors, setVendors] = useState([])
@@ -33,6 +40,14 @@ export default function AddVendorModal({ item, existingVendorIds = [], onClose, 
 
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState(null)
+
+  // --- Sibling-department follow-up prompts ---
+  const [siblingQueue, setSiblingQueue] = useState([])
+  const [siblingPayload, setSiblingPayload] = useState(null)
+  const [siblingVendorName, setSiblingVendorName] = useState('')
+  const [processingSibling, setProcessingSibling] = useState(false)
+  const [siblingErrors, setSiblingErrors] = useState([])
+  const [siblingFlowDone, setSiblingFlowDone] = useState(false)
 
   useEffect(() => {
     getSuppliers()
@@ -83,24 +98,150 @@ export default function AddVendorModal({ item, existingVendorIds = [], onClose, 
 
     setSaving(true)
     setErr(null)
+
+    const pricePayload = {
+      supplier_id: Number(vendorId),
+      total_price: Number(totalPrice),
+      pricing_mode: pricingMode,
+      ...(isArea
+        ? { length: Number(length), length_unit: lengthUnit, width: Number(width), width_unit: widthUnit }
+        : { quantity: Number(quantity) }),
+    }
+
     try {
-      await createSupplierProduct({
-        supplier_id: Number(vendorId),
-        product_id: item.id,
-        total_price: Number(totalPrice),
-        pricing_mode: pricingMode,
-        ...(isArea
-          ? { length: Number(length), length_unit: lengthUnit, width: Number(width), width_unit: widthUnit }
-          : { quantity: Number(quantity) }),
-      })
-      onCreated()
+      await createSupplierProduct({ ...pricePayload, product_id: item.id })
     } catch (error) {
       setErr(error.response?.data?.detail || 'Failed to add vendor price.')
-    } finally {
       setSaving(false)
+      return
+    }
+
+    // Vendor price for THIS department's copy is saved. Now check whether
+    // the same item exists under other departments and doesn't have this
+    // vendor's price yet.
+    try {
+      const { data: siblings } = await getProductSiblings(item.id, Number(vendorId))
+      if (siblings.length > 0) {
+        const vendorName = vendors.find((v) => String(v.id) === String(vendorId))?.name || 'This vendor'
+        setSiblingVendorName(vendorName)
+        setSiblingPayload(pricePayload)
+        setSiblingQueue(siblings)
+        setSaving(false)
+        return // keep the modal open to run the follow-up prompts
+      }
+    } catch {
+      // Non-fatal - the main save already succeeded, just skip the follow-up.
+    }
+
+    setSaving(false)
+    onCreated()
+  }
+
+  const currentSibling = siblingQueue[0] || null
+
+  const finishSiblingFlow = (errors) => {
+    if (errors.length === 0) {
+      onCreated()
+    } else {
+      // Something failed along the way - let the user see what, instead of
+      // silently closing as if everything went through.
+      setSiblingFlowDone(true)
     }
   }
 
+  const handleSiblingYes = async () => {
+    if (!currentSibling || !siblingPayload) return
+    setProcessingSibling(true)
+    let nextErrors = siblingErrors
+    try {
+      await createSupplierProduct({ ...siblingPayload, product_id: currentSibling.id })
+    } catch (error) {
+      nextErrors = [
+        ...siblingErrors,
+        {
+          department_name: currentSibling.department_name,
+          message: error.response?.data?.detail || 'Failed to add vendor price.',
+        },
+      ]
+      setSiblingErrors(nextErrors)
+    }
+    setProcessingSibling(false)
+    const rest = siblingQueue.slice(1)
+    setSiblingQueue(rest)
+    if (rest.length === 0) finishSiblingFlow(nextErrors)
+  }
+
+  const handleSiblingNo = () => {
+    const rest = siblingQueue.slice(1)
+    setSiblingQueue(rest)
+    if (rest.length === 0) finishSiblingFlow(siblingErrors)
+  }
+
+  // --- Sibling follow-up screen (shown after the main save succeeds) ---
+  if (currentSibling || siblingFlowDone) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
+        <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl sm:max-w-sm sm:rounded-2xl sm:p-6">
+          {siblingFlowDone ? (
+            <>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">Some prices didn't save</h2>
+                <button onClick={onCreated} className="rounded-full p-1 hover:bg-gray-100">
+                  <X size={18} />
+                </button>
+              </div>
+              <ul className="mb-4 space-y-2">
+                {siblingErrors.map((e, i) => (
+                  <li key={i} className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                    <span>
+                      <span className="font-medium">{e.department_name}:</span> {e.message}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={onCreated}
+                className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700"
+              >
+                Done
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="mb-4 flex items-center gap-2">
+                <CheckCircle2 size={18} className="text-green-600" />
+                <h2 className="text-sm font-semibold text-gray-900">Vendor price added</h2>
+              </div>
+              <p className="mb-5 text-sm text-gray-600">
+                <span className="font-medium">{item.name}</span> also exists in{' '}
+                <span className="font-medium">{currentSibling.department_name}</span>. Add{' '}
+                <span className="font-medium">{siblingVendorName}</span>'s price there too?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSiblingNo}
+                  disabled={processingSibling}
+                  className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                >
+                  No
+                </button>
+                <button
+                  onClick={handleSiblingYes}
+                  disabled={processingSibling}
+                  className="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+                >
+                  {processingSibling ? 'Adding...' : 'Yes, add it'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // --- Main "Add Vendor" form ---
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
       <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:max-w-lg sm:rounded-2xl sm:p-6">
