@@ -14,6 +14,9 @@ export const getDepartmentCategoryItems = (departmentId, categoryId) =>
 export const getDepartmentItems = (departmentId) =>
   api.get(`/api/departments/${departmentId}/items`)
 
+export const getDepartmentCategoryVendorItems = (departmentId, categoryId) =>
+  api.get(`/api/departments/${departmentId}/categories/${categoryId}/vendor-items`)
+
 export const getItemVendors = (productId) =>
   api.get(`/api/items/${productId}/vendors`)
 

@@ -143,6 +143,83 @@ def get_department_category_items(department_id: int, category_id: int, db: Sess
         items=items,
     )
 
+@router.get(
+    "/departments/{department_id}/categories/{category_id}/vendor-items",
+    response_model=schemas.DepartmentCategoryVendorItemsResponse,
+)
+def get_department_category_vendor_items(department_id: int, category_id: int, db: Session = Depends(get_db)):
+    """
+    Browse flow (flat view): items in this department+category, each with
+    its vendor offers already attached - no separate "pick item -> pick
+    vendor" screen. Items with zero vendor offers are still included (with
+    an empty vendors list) so the "+ Add Vendor" action stays reachable.
+    """
+    department = db.query(models.Department).filter(models.Department.id == department_id).first()
+    if not department:
+        raise HTTPException(status_code=404, detail="Department not found")
+
+    category = db.query(models.Category).filter(models.Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    products = (
+        db.query(models.Product)
+        .filter(
+            models.Product.department_id == department_id,
+            models.Product.category_id == category_id,
+        )
+        .order_by(models.Product.name, models.Product.variant_code_or_size)
+        .all()
+    )
+
+    groups = []
+    for product in products:
+        sp_list = (
+            db.query(models.SupplierProduct)
+            .options(joinedload(models.SupplierProduct.supplier))
+            .filter(models.SupplierProduct.product_id == product.id)
+            .join(models.Supplier)
+            .order_by(models.Supplier.name)
+            .all()
+        )
+
+        cheapest_id = None
+        if sp_list:
+            cheapest_id = min(sp_list, key=lambda sp: sp.unit_price).id
+
+        vendors = [
+            schemas.VendorOfferOut(
+                supplier_product_id=sp.id,
+                supplier_id=sp.supplier_id,
+                supplier_name=sp.supplier.name,
+                pricing_mode=sp.pricing_mode,
+                length=sp.length,
+                length_unit=sp.length_unit,
+                width=sp.width,
+                width_unit=sp.width_unit,
+                total_price=sp.total_price,
+                total_length_or_quantity=sp.total_length_or_quantity,
+                unit_price=sp.unit_price,
+                is_cheapest=(sp.id == cheapest_id),
+            )
+            for sp in sp_list
+        ]
+
+        groups.append(
+            schemas.DeptCategoryItemGroupOut(
+                product_id=product.id,
+                product_name=product.name,
+                variant_code_or_size=product.variant_code_or_size,
+                vendors=vendors,
+            )
+        )
+
+    return schemas.DepartmentCategoryVendorItemsResponse(
+        department=schemas.DepartmentOut.model_validate(department),
+        category=schemas.CategoryOut.model_validate(category),
+        items=groups,
+    )
+
 @router.get("/categories/{category_id}/vendor-items", response_model=schemas.CategoryVendorItemsResponse)
 def get_category_vendor_items(category_id: int, db: Session = Depends(get_db)):
     """

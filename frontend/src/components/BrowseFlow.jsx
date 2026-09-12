@@ -2,26 +2,23 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   getDepartments,
   getDepartmentCategories,
-  getDepartmentCategoryItems,
-  getItemVendors,
+  getDepartmentCategoryVendorItems,
 } from '../api/endpoints'
 import DepartmentGrid from './DepartmentGrid'
 import DepartmentCategoryList from './DepartmentCategoryList'
-import ItemList from './ItemList'
-import VendorList from './VendorList'
+import DepartmentCategoryItemsList from './DepartmentCategoryItemsList'
 import EditPriceModal from './EditPriceModal'
 import PriceHistoryModal from './PriceHistoryModal'
 import AddVendorModal from './AddVendorModal'
-import EditItemModal from './EditItemModal'
 
 /**
- * The main Browse experience:
- *   Departments -> Categories (A-Z) -> Items (A-Z) -> Vendors (A-Z) -> Price Edit / History
- * Each step is its own screen (not nested accordions) so it works well on
- * a small phone screen - one focused list at a time, with a back button.
+ * The main Browse experience, flattened:
+ *   Departments -> Categories (A-Z) -> Items (A-Z), each item showing its
+ *   own vendor offers inline (name, unit price, Edit/History) plus a
+ *   per-item "+ Add Vendor" action. No separate "pick vendor" sub-screen.
  */
 export default function BrowseFlow({ refreshKey }) {
-  const [step, setStep] = useState('departments') // 'departments' | 'categories' | 'items' | 'vendors'
+  const [step, setStep] = useState('departments') // 'departments' | 'categories' | 'items'
 
   const [departments, setDepartments] = useState([])
   const [loadingDepartments, setLoadingDepartments] = useState(true)
@@ -34,15 +31,9 @@ export default function BrowseFlow({ refreshKey }) {
   const [items, setItems] = useState([])
   const [loadingItems, setLoadingItems] = useState(false)
 
-  const [activeItem, setActiveItem] = useState(null)
-  const [vendors, setVendors] = useState([])
-  const [loadingVendors, setLoadingVendors] = useState(false)
-
   const [editCell, setEditCell] = useState(null)
   const [historyCell, setHistoryCell] = useState(null)
-  const [addingVendor, setAddingVendor] = useState(false)
-
-  const [editingItem, setEditingItem] = useState(null)
+  const [addVendorItem, setAddVendorItem] = useState(null)
 
   const loadDepartments = useCallback(() => {
     setLoadingDepartments(true)
@@ -64,23 +55,17 @@ export default function BrowseFlow({ refreshKey }) {
 
   const loadItems = useCallback((departmentId, categoryId) => {
     setLoadingItems(true)
-    getDepartmentCategoryItems(departmentId, categoryId)
+    getDepartmentCategoryVendorItems(departmentId, categoryId)
       .then(({ data }) => setItems(data.items))
       .finally(() => setLoadingItems(false))
-  }, [])
-
-  const loadVendors = useCallback((productId) => {
-    setLoadingVendors(true)
-    getItemVendors(productId)
-      .then(({ data }) => setVendors(data.vendors))
-      .finally(() => setLoadingVendors(false))
   }, [])
 
   // Re-fetch whatever screen is currently active after an edit/create elsewhere
   useEffect(() => {
     if (step === 'categories' && activeDepartment) loadCategories(activeDepartment.id)
-    if (step === 'items' && activeDepartment && activeCategory) loadItems(activeDepartment.id, activeCategory.category_id)
-    if (step === 'vendors' && activeItem) loadVendors(activeItem.id)
+    if (step === 'items' && activeDepartment && activeCategory) {
+      loadItems(activeDepartment.id, activeCategory.category_id)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey])
 
@@ -96,18 +81,6 @@ export default function BrowseFlow({ refreshKey }) {
     loadItems(activeDepartment.id, category.category_id)
   }
 
-  const handleSelectItem = (item) => {
-    setActiveItem({
-      id: item.product_id,
-      name: item.product_name,
-      variant_code_or_size: item.variant_code_or_size,
-      category_id: item.category_id,
-      category_name: item.category_name,
-    })
-    setStep('vendors')
-    loadVendors(item.product_id)
-  }
-
   const handleBackToDepartments = () => {
     setStep('departments')
     setActiveDepartment(null)
@@ -120,14 +93,8 @@ export default function BrowseFlow({ refreshKey }) {
     setItems([])
   }
 
-  const handleBackToItems = () => {
-    setStep('items')
-    setActiveItem(null)
-    setVendors([])
-  }
-
-  const refreshVendors = () => {
-    if (activeItem) loadVendors(activeItem.id)
+  const refreshItems = () => {
+    if (activeDepartment && activeCategory) loadItems(activeDepartment.id, activeCategory.category_id)
   }
 
   return (
@@ -147,44 +114,39 @@ export default function BrowseFlow({ refreshKey }) {
       )}
 
       {step === 'items' && activeDepartment && activeCategory && (
-        <ItemList
-          department={{ ...activeDepartment, name: `${activeDepartment.name} / ${activeCategory.category_name}` }}
+        <DepartmentCategoryItemsList
+          department={activeDepartment}
+          category={activeCategory}
           items={items}
           loading={loadingItems}
           onBack={handleBackToCategories}
-          onSelect={handleSelectItem}
-          onEdit={(item) => setEditingItem(item)}
-        />
-      )}
-
-      {step === 'vendors' && activeItem && activeDepartment && (
-        <VendorList
-          item={activeItem}
-          department={activeDepartment}
-          vendors={vendors}
-          loading={loadingVendors}
-          onBack={handleBackToItems}
-          onAddVendor={() => setAddingVendor(true)}
-          onEdit={(v) =>
-              setEditCell({
-                supplier_product_id: v.supplier_product_id,
-                product_id: activeItem.id,
-                supplier_id: v.supplier_id,
-                total_price: v.total_price,
-                total_length_or_quantity: v.total_length_or_quantity,
-                pricing_mode: v.pricing_mode,
-                length: v.length,
-                length_unit: v.length_unit,
-                width: v.width,
-                width_unit: v.width_unit,
-                productName: activeItem.name,
-                supplierName: v.supplier_name,
-              })
-            }
-          onHistory={(v) =>
+          onAddVendor={(item) =>
+            setAddVendorItem({
+              id: item.product_id,
+              name: item.product_name,
+              variant_code_or_size: item.variant_code_or_size,
+            })
+          }
+          onEditVendor={(item, v) =>
+            setEditCell({
+              supplier_product_id: v.supplier_product_id,
+              product_id: item.product_id,
+              supplier_id: v.supplier_id,
+              total_price: v.total_price,
+              total_length_or_quantity: v.total_length_or_quantity,
+              pricing_mode: v.pricing_mode,
+              length: v.length,
+              length_unit: v.length_unit,
+              width: v.width,
+              width_unit: v.width_unit,
+              productName: item.product_name,
+              supplierName: v.supplier_name,
+            })
+          }
+          onHistoryVendor={(item, v) =>
             setHistoryCell({
               supplier_product_id: v.supplier_product_id,
-              productName: activeItem.name,
+              productName: item.product_name,
               supplierName: v.supplier_name,
               total_length_or_quantity: v.total_length_or_quantity,
               pricing_mode: v.pricing_mode,
@@ -193,14 +155,16 @@ export default function BrowseFlow({ refreshKey }) {
         />
       )}
 
-      {addingVendor && activeItem && (
+      {addVendorItem && (
         <AddVendorModal
-          item={activeItem}
-          existingVendorIds={vendors.map((v) => v.supplier_id)}
-          onClose={() => setAddingVendor(false)}
+          item={addVendorItem}
+          existingVendorIds={
+            items.find((it) => it.product_id === addVendorItem.id)?.vendors.map((v) => v.supplier_id) || []
+          }
+          onClose={() => setAddVendorItem(null)}
           onCreated={() => {
-            setAddingVendor(false)
-            refreshVendors()
+            setAddVendorItem(null)
+            refreshItems()
           }}
         />
       )}
@@ -211,7 +175,7 @@ export default function BrowseFlow({ refreshKey }) {
           onClose={() => setEditCell(null)}
           onSaved={() => {
             setEditCell(null)
-            refreshVendors()
+            refreshItems()
           }}
         />
       )}
@@ -221,17 +185,6 @@ export default function BrowseFlow({ refreshKey }) {
           supplierProductId={historyCell.supplier_product_id}
           cellInfo={historyCell}
           onClose={() => setHistoryCell(null)}
-        />
-      )}
-
-      {editingItem && (
-        <EditItemModal
-          item={editingItem}
-          onClose={() => setEditingItem(null)}
-          onSaved={() => {
-            setEditingItem(null)
-            if (activeDepartment && activeCategory) loadItems(activeDepartment.id, activeCategory.category_id)
-          }}
         />
       )}
     </div>

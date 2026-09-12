@@ -252,7 +252,7 @@ class DepartmentCategoryItemsResponse(BaseModel):
     department: DepartmentOut
     category: CategoryOut
     items: List[ItemSummaryOut]
-    
+
 
 class VendorOfferOut(BaseModel):
     supplier_product_id: int
@@ -273,6 +273,19 @@ class ItemVendorsResponse(BaseModel):
     product: ProductOut
     department_name: str
     vendors: List[VendorOfferOut]
+
+
+class DeptCategoryItemGroupOut(BaseModel):
+    product_id: int
+    product_name: str
+    variant_code_or_size: Optional[str] = None
+    vendors: List[VendorOfferOut] = []
+
+
+class DepartmentCategoryVendorItemsResponse(BaseModel):
+    department: DepartmentOut
+    category: CategoryOut
+    items: List[DeptCategoryItemGroupOut]
 
 
 # ---------- Items Tab (Category -> unique items across departments -> merged vendors) ----------
