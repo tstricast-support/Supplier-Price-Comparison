@@ -50,7 +50,7 @@ export default function CategoryVendorItemList({ category, items, loading, onBac
           {filtered.map((item) => (
             <li
               key={item.supplier_product_id}
-              className={`rounded-xl border bg-white p-4 shadow-sm ${item.is_cheapest ? 'border-green-300' : 'border-gray-200'}`}
+              className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2.5">
@@ -63,11 +63,6 @@ export default function CategoryVendorItemList({ category, items, loading, onBac
                       {item.variant_code_or_size && (
                         <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
                           {item.variant_code_or_size}
-                        </span>
-                      )}
-                      {item.is_cheapest && (
-                        <span className="shrink-0 rounded bg-green-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                          CHEAPEST
                         </span>
                       )}
                     </div>
