@@ -100,3 +100,6 @@ export const updateSupplierProduct = (spId, payload) =>
 
 export const getPriceHistory = (spId) =>
   api.get(`/api/admin/supplier-products/${spId}/history`)
+
+// ---- Global search ----
+export const globalSearch = (q) => api.get('/api/search', { params: { q } })

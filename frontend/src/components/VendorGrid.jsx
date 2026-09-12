@@ -1,37 +1,24 @@
-import { useState, useMemo } from 'react'
-import { Search, Building2, ChevronRight } from 'lucide-react'
+import { useMemo } from 'react'
+import { Building2, ChevronRight } from 'lucide-react'
 
-/** Step 1 of Vendor View: all vendors, A-Z, searchable. */
+/** Step 1 of Vendor View: all vendors, A-Z. Searching vendors now happens
+ * through the global search bar in the header instead of a local box here. */
 export default function VendorGrid({ suppliers, loading, onSelect }) {
-  const [search, setSearch] = useState('')
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    const sorted = [...suppliers].sort((a, b) => a.name.localeCompare(b.name))
-    if (!q) return sorted
-    return sorted.filter((s) => s.name.toLowerCase().includes(q))
-  }, [suppliers, search])
+  const sorted = useMemo(
+    () => [...suppliers].sort((a, b) => a.name.localeCompare(b.name)),
+    [suppliers]
+  )
 
   return (
     <div>
-      <div className="relative mb-4">
-        <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search vendors..."
-          className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-        />
-      </div>
-
       {loading && <p className="py-10 text-center text-sm text-gray-500">Loading vendors...</p>}
-      {!loading && filtered.length === 0 && (
-        <p className="py-10 text-center text-sm text-gray-500">No vendors found.</p>
+      {!loading && sorted.length === 0 && (
+        <p className="py-10 text-center text-sm text-gray-500">No vendors yet.</p>
       )}
 
-      {!loading && filtered.length > 0 && (
+      {!loading && sorted.length > 0 && (
         <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white shadow-sm">
-          {filtered.map((s) => (
+          {sorted.map((s) => (
             <li key={s.id}>
               <button
                 onClick={() => onSelect(s)}

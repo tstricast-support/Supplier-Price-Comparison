@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
 from app.config import settings
-from app.routers import price_matrix, suppliers, admin, navigation
+from app.routers import price_matrix, suppliers, admin, navigation,search
 
 Base.metadata.create_all(bind=engine)
 
@@ -25,6 +25,8 @@ app.include_router(price_matrix.router)
 app.include_router(suppliers.router)
 app.include_router(admin.router)
 app.include_router(navigation.router)
+app.include_router(search.router)
+
 
 
 @app.get("/api/health", tags=["health"])

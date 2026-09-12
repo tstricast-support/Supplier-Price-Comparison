@@ -352,3 +352,28 @@ class ItemAllVendorsResponse(BaseModel):
     product_name: str
     variant_code_or_size: Optional[str] = None
     vendors: List[MergedVendorOfferOut]
+
+# ---------- Global Search ----------
+
+class SearchCategoryOut(BaseModel):
+    id: int
+    name: str
+
+
+class SearchVendorOut(BaseModel):
+    id: int
+    name: str
+
+
+class SearchItemOut(BaseModel):
+    product_id: int
+    product_name: str
+    variant_code_or_size: Optional[str] = None
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
+
+
+class GlobalSearchResponse(BaseModel):
+    categories: List[SearchCategoryOut]
+    vendors: List[SearchVendorOut]
+    items: List[SearchItemOut]

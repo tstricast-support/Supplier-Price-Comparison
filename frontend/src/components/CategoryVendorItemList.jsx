@@ -1,13 +1,15 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Search, ChevronLeft, ChevronDown, Package, Pencil, History } from 'lucide-react'
 import { formatRs, unitSuffix } from '../utils/currency'
 
 /** Items tab, single screen: every vendor offer for every item in this
- * category. Each row is collapsed by default (name, variant, vendor, unit
- * price) - tap it to reveal Price Edit / History. */
-export default function CategoryVendorItemList({ category, items, loading, onBack, onEdit, onHistory }) {
+ * category. Each row is collapsed by default - tap it to reveal Price Edit
+ * / History. If `highlightProductId` is set (e.g. from the global search
+ * bar), the matching row auto-expands and scrolls into view. */
+export default function CategoryVendorItemList({ category, items, loading, onBack, onEdit, onHistory, highlightProductId }) {
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState(null)
+  const rowRefs = useRef({})
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -20,6 +22,17 @@ export default function CategoryVendorItemList({ category, items, loading, onBac
         (it.department_name || '').toLowerCase().includes(q)
     )
   }, [items, search])
+
+  useEffect(() => {
+    if (!highlightProductId || items.length === 0) return
+    const match = items.find((it) => it.product_id === highlightProductId)
+    if (match) {
+      setExpandedId(match.supplier_product_id)
+      setTimeout(() => {
+        rowRefs.current[match.supplier_product_id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 100)
+    }
+  }, [highlightProductId, items])
 
   const toggleExpanded = (id) => {
     setExpandedId((prev) => (prev === id ? null : id))
@@ -40,7 +53,7 @@ export default function CategoryVendorItemList({ category, items, loading, onBac
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search items or vendors in this category..."
+          placeholder="Filter items or vendors in this category..."
           className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
         />
       </div>
@@ -54,8 +67,13 @@ export default function CategoryVendorItemList({ category, items, loading, onBac
         <ul className="space-y-2.5">
           {filtered.map((item) => {
             const isOpen = expandedId === item.supplier_product_id
+            const isHighlighted = highlightProductId === item.product_id
             return (
-              <li key={item.supplier_product_id} className="rounded-xl border border-gray-200 bg-white shadow-sm">
+              <li
+                key={item.supplier_product_id}
+                ref={(el) => { rowRefs.current[item.supplier_product_id] = el }}
+                className={`rounded-xl border bg-white shadow-sm ${isHighlighted ? 'border-brand-400 ring-2 ring-brand-100' : 'border-gray-200'}`}
+              >
                 <button
                   onClick={() => toggleExpanded(item.supplier_product_id)}
                   className="flex w-full items-start justify-between gap-3 p-4 text-left"
