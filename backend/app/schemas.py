@@ -48,6 +48,7 @@ class ProductCreate(BaseModel):
 class ProductUpdate(BaseModel):
     name: str
     variant_code_or_size: Optional[str] = None
+    department_id: int
     category_id: int
 
 

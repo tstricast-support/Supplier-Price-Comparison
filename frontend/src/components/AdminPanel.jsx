@@ -46,7 +46,7 @@ export default function AdminPanel() {
   const [categories, setCategories] = useState([])
   const [products, setProducts] = useState([])
 
-  const refreshLookups = useCallback(() => {
+const refreshLookups = useCallback(() => {
   getSuppliers().then(({ data }) => {
     const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name))
     setSuppliers(sorted)
@@ -59,17 +59,17 @@ export default function AdminPanel() {
 
   getPriceMatrix(null, null).then(({ data }) => {
     // Keep the full row shape (not just a flattened label) so Edit can
-    // open EditItemModal with everything it needs.
+    // open EditItemModal with everything it needs, including department_id
+    // so the item can be moved between departments.
     const flat = data.rows.map((r) => ({
       product_id: r.product_id,
       product_name: r.product_name,
       variant_code_or_size: r.variant_code_or_size,
+      department_id: r.department_id,
       department_name: r.department_name,
       category_id: r.category_id,
       category_name: r.category_name,
     }))
-    // getPriceMatrix sorts rows by cheapest price, not name - re-sort here
-    // so the Manage tab's Items list is always A-Z regardless of price.
     flat.sort((a, b) => {
       const nameCompare = a.product_name.localeCompare(b.product_name)
       if (nameCompare !== 0) return nameCompare

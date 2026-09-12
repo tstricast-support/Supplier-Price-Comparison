@@ -138,11 +138,15 @@ def update_product(product_id: int, payload: schemas.ProductUpdate, db: Session 
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
 
+    department = db.query(models.Department).filter(models.Department.id == payload.department_id).first()
+    if not department:
+        raise HTTPException(status_code=404, detail="Department not found")
+
     clash = (
         db.query(models.Product)
         .filter(
             models.Product.id != product_id,
-            models.Product.department_id == product.department_id,
+            models.Product.department_id == payload.department_id,
             models.Product.name == payload.name.strip(),
             models.Product.variant_code_or_size == (payload.variant_code_or_size.strip() if payload.variant_code_or_size else None),
         )
@@ -157,6 +161,7 @@ def update_product(product_id: int, payload: schemas.ProductUpdate, db: Session 
     product.name = payload.name.strip()
     product.variant_code_or_size = payload.variant_code_or_size.strip() if payload.variant_code_or_size else None
     product.category_id = payload.category_id
+    product.department_id = payload.department_id
     db.commit()
     db.refresh(product)
     product.category_name = category.name
