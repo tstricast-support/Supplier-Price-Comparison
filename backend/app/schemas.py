@@ -153,6 +153,7 @@ class SupplierProductCreate(SupplierProductBase):
 
 
 class SupplierProductUpdate(SupplierProductBase):
+    supplier_id: int
     changed_by: Optional[str] = None
 
 

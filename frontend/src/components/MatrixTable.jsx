@@ -183,19 +183,22 @@ export default function MatrixTable() {
                               <button
                                 onClick={() =>
                                     setEditCell({
-                                      supplier_product_id: offer.supplier_product_id,
-                                      product_id: row.product_id,
-                                      supplier_id: offer.supplier_id,
-                                      total_price: offer.total_price,
-                                      total_length_or_quantity: offer.total_length_or_quantity,
-                                      pricing_mode: offer.pricing_mode,
-                                      length: offer.length,
-                                      length_unit: offer.length_unit,
-                                      width: offer.width,
-                                      width_unit: offer.width_unit,
-                                      productName: row.product_name,
-                                      supplierName: offer.supplier_name,
-                                    })
+                                        supplier_product_id: offer.supplier_product_id,
+                                        product_id: row.product_id,
+                                        supplier_id: offer.supplier_id,
+                                        total_price: offer.total_price,
+                                        total_length_or_quantity: offer.total_length_or_quantity,
+                                        pricing_mode: offer.pricing_mode,
+                                        length: offer.length,
+                                        length_unit: offer.length_unit,
+                                        width: offer.width,
+                                        width_unit: offer.width_unit,
+                                        productName: row.product_name,
+                                        supplierName: offer.supplier_name,
+                                        variant_code_or_size: row.variant_code_or_size,
+                                        department_id: row.department_id,
+                                        category_id: row.category_id,
+                                      })
                                   }
                                 className="flex items-center gap-1 rounded bg-brand-600 px-2 py-1 text-[11px] text-white hover:bg-brand-700"
                               >

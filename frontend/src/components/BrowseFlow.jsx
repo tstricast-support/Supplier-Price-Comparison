@@ -128,21 +128,24 @@ export default function BrowseFlow({ refreshKey }) {
             })
           }
           onEditVendor={(item, v) =>
-            setEditCell({
-              supplier_product_id: v.supplier_product_id,
-              product_id: item.product_id,
-              supplier_id: v.supplier_id,
-              total_price: v.total_price,
-              total_length_or_quantity: v.total_length_or_quantity,
-              pricing_mode: v.pricing_mode,
-              length: v.length,
-              length_unit: v.length_unit,
-              width: v.width,
-              width_unit: v.width_unit,
-              productName: item.product_name,
-              supplierName: v.supplier_name,
-            })
-          }
+              setEditCell({
+                supplier_product_id: v.supplier_product_id,
+                product_id: item.product_id,
+                supplier_id: v.supplier_id,
+                total_price: v.total_price,
+                total_length_or_quantity: v.total_length_or_quantity,
+                pricing_mode: v.pricing_mode,
+                length: v.length,
+                length_unit: v.length_unit,
+                width: v.width,
+                width_unit: v.width_unit,
+                productName: item.product_name,
+                supplierName: v.supplier_name,
+                variant_code_or_size: item.variant_code_or_size,
+                department_id: activeDepartment.id,
+                category_id: activeCategory.category_id,
+              })
+            }
           onHistoryVendor={(item, v) =>
             setHistoryCell({
               supplier_product_id: v.supplier_product_id,

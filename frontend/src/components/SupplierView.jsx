@@ -129,21 +129,24 @@ export default function SupplierView() {
           onBack={handleBackToCategories}
           onPrint={handlePrintCategory}
           onEdit={(item) =>
-            setEditCell({
-              supplier_product_id: item.supplier_product_id,
-              product_id: item.product_id,
-              supplier_id: activeSupplier.id,
-              total_price: item.total_price,
-              total_length_or_quantity: item.total_length_or_quantity,
-              pricing_mode: item.pricing_mode,
-              length: item.length,
-              length_unit: item.length_unit,
-              width: item.width,
-              width_unit: item.width_unit,
-              productName: item.product_name,
-              supplierName: activeSupplier.name,
-            })
-          }
+              setEditCell({
+                supplier_product_id: item.supplier_product_id,
+                product_id: item.product_id,
+                supplier_id: activeSupplier.id,
+                total_price: item.total_price,
+                total_length_or_quantity: item.total_length_or_quantity,
+                pricing_mode: item.pricing_mode,
+                length: item.length,
+                length_unit: item.length_unit,
+                width: item.width,
+                width_unit: item.width_unit,
+                productName: item.product_name,
+                supplierName: activeSupplier.name,
+                variant_code_or_size: item.variant_code_or_size,
+                department_id: item.department_id,
+                category_id: activeCategory.id,
+              })
+            }
           onHistory={(item) =>
             setHistoryCell({
               supplier_product_id: item.supplier_product_id,

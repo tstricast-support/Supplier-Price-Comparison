@@ -346,10 +346,31 @@ def update_supplier_product(
     if not sp:
         raise HTTPException(status_code=404, detail="Supplier-product entry not found")
 
+    if payload.supplier_id != sp.supplier_id:
+        supplier = db.query(models.Supplier).filter(models.Supplier.id == payload.supplier_id).first()
+        if not supplier:
+            raise HTTPException(status_code=404, detail="Vendor not found")
+
+        clash = (
+            db.query(models.SupplierProduct)
+            .filter(
+                models.SupplierProduct.id != sp_id,
+                models.SupplierProduct.supplier_id == payload.supplier_id,
+                models.SupplierProduct.product_id == sp.product_id,
+            )
+            .first()
+        )
+        if clash:
+            raise HTTPException(
+                status_code=400,
+                detail="This vendor already has a price for this item. Edit that entry instead.",
+            )
+
     old_price = sp.total_price
 
     total_len_or_qty, length, length_unit, width, width_unit = _resolve_dimensions(payload)
 
+    sp.supplier_id = payload.supplier_id
     sp.pricing_mode = payload.pricing_mode
     sp.length = length
     sp.length_unit = length_unit
