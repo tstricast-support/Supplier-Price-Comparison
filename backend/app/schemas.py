@@ -290,6 +290,30 @@ class CategoryItemsResponse(BaseModel):
     category: CategoryOut
     items: List[CategoryItemOut]
 
+class CategoryVendorItemOut(BaseModel):
+    supplier_product_id: int
+    product_id: int
+    product_name: str
+    variant_code_or_size: Optional[str] = None
+    supplier_id: int
+    supplier_name: str
+    department_id: int
+    department_name: str
+    pricing_mode: str
+    length: Optional[float] = None
+    length_unit: Optional[str] = None
+    width: Optional[float] = None
+    width_unit: Optional[str] = None
+    total_price: float
+    total_length_or_quantity: float
+    unit_price: float
+    is_cheapest: bool = False
+
+
+class CategoryVendorItemsResponse(BaseModel):
+    category: CategoryOut
+    items: List[CategoryVendorItemOut]
+
 
 class MergedVendorOfferOut(BaseModel):
     supplier_product_id: int

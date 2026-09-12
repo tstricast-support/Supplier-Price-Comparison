@@ -21,6 +21,10 @@ export const getItemVendors = (productId) =>
 export const getCategoryItems = (categoryId) =>
   api.get(`/api/categories/${categoryId}/items`)
 
+// ---- Items tab: Category -> flat item+vendor list ----
+export const getCategoryVendorItems = (categoryId) =>
+  api.get(`/api/categories/${categoryId}/vendor-items`)
+
 // ---- Legacy matrix (still used by the Manage tab's product picker) ----
 export const getPriceMatrix = (departmentId, search) =>
   api.get('/api/price-matrix', {

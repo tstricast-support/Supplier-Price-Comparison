@@ -143,6 +143,78 @@ def get_department_category_items(department_id: int, category_id: int, db: Sess
         items=items,
     )
 
+@router.get("/categories/{category_id}/vendor-items", response_model=schemas.CategoryVendorItemsResponse)
+def get_category_vendor_items(category_id: int, db: Session = Depends(get_db)):
+    """
+    Items tab (flat view): every vendor offer for every item in this
+    category, in ONE list - no "pick item, then pick vendor" sub-screen.
+    Items with the same name+variant across departments are still merged
+    (their vendor offers combined), same dedup rule as get_category_items.
+    """
+    category = db.query(models.Category).filter(models.Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    products = (
+        db.query(models.Product)
+        .options(joinedload(models.Product.department))
+        .filter(models.Product.category_id == category_id)
+        .all()
+    )
+
+    groups = {}  # (name, variant) -> { product_ids: [...] }
+    for p in products:
+        key = (p.name, p.variant_code_or_size)
+        groups.setdefault(key, {"product_ids": []})["product_ids"].append(p.id)
+
+    dept_names = {p.id: p.department.name for p in products}
+    dept_ids = {p.id: p.department_id for p in products}
+
+    rows = []
+    for (name, variant), g in groups.items():
+        sp_list = (
+            db.query(models.SupplierProduct)
+            .options(joinedload(models.SupplierProduct.supplier))
+            .filter(models.SupplierProduct.product_id.in_(g["product_ids"]))
+            .join(models.Supplier)
+            .order_by(models.Supplier.name)
+            .all()
+        )
+        if not sp_list:
+            continue  # nothing to show for an item with no vendor price yet
+
+        cheapest_id = min(sp_list, key=lambda sp: sp.unit_price).id
+
+        for sp in sp_list:
+            rows.append(
+                schemas.CategoryVendorItemOut(
+                    supplier_product_id=sp.id,
+                    product_id=sp.product_id,
+                    product_name=name,
+                    variant_code_or_size=variant,
+                    supplier_id=sp.supplier_id,
+                    supplier_name=sp.supplier.name,
+                    department_id=dept_ids[sp.product_id],
+                    department_name=dept_names[sp.product_id],
+                    pricing_mode=sp.pricing_mode,
+                    length=sp.length,
+                    length_unit=sp.length_unit,
+                    width=sp.width,
+                    width_unit=sp.width_unit,
+                    total_price=sp.total_price,
+                    total_length_or_quantity=sp.total_length_or_quantity,
+                    unit_price=sp.unit_price,
+                    is_cheapest=(sp.id == cheapest_id),
+                )
+            )
+
+    rows.sort(key=lambda r: (r.product_name.lower(), r.variant_code_or_size or "", r.unit_price))
+
+    return schemas.CategoryVendorItemsResponse(
+        category=schemas.CategoryOut.model_validate(category),
+        items=rows,
+    )
+
 
 @router.get("/items/{product_id}/vendors", response_model=schemas.ItemVendorsResponse)
 def get_item_vendors(product_id: int, db: Session = Depends(get_db)):
