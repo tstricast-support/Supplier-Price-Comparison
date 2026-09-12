@@ -89,13 +89,29 @@ export default function SupplierView({ navRequest, onNavConsumed }) {
     if (activeSupplier && activeCategory) loadItems(activeSupplier.id, activeCategory.id)
   }
 
-  const handlePrintAll = async () => {
+    const handlePrintAll = async () => {
     if (!activeSupplier) return
+
+    // Open the window SYNCHRONOUSLY, right here in the click handler,
+    // before the await below. iOS Safari only allows window.open() inside
+    // the original user-gesture call stack - once we await a fetch first,
+    // Safari silently blocks the popup and nothing happens (this was why
+    // "Print Item List" seemed to do nothing on iPhone).
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      alert('Please allow pop-ups for this site to print the item list.')
+      return
+    }
+    printWindow.document.write(
+      '<p style="font-family: Arial, sans-serif; padding: 24px; color: #555;">Preparing print list...</p>'
+    )
+
     setPrintingAll(true)
     try {
       const { data } = await getSupplierProducts(activeSupplier.id)
-      printVendorItemList(activeSupplier.name, data, departmentsById)
+      printVendorItemList(activeSupplier.name, data, departmentsById, printWindow)
     } catch {
+      printWindow.close()
       alert('Failed to load items for printing. Please try again.')
     } finally {
       setPrintingAll(false)
