@@ -98,6 +98,7 @@ class SupplierCategoryItemOut(BaseModel):
     variant_code_or_size: Optional[str] = None
     department_id: int
     department_name: str
+    category_id: Optional[int] = None
     pricing_mode: str
     length: Optional[float] = None
     length_unit: Optional[str] = None

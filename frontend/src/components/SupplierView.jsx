@@ -2,19 +2,22 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   getSuppliers,
   getSupplierCategories,
-  getSupplierCategoryItems,
   getSupplierProducts,
   getDepartments,
 } from '../api/endpoints'
 import VendorGrid from './VendorGrid'
 import VendorCategoryList from './VendorCategoryList'
-import VendorCategoryItemList from './VendorCategoryItemList'
 import EditPriceModal from './EditPriceModal'
 import PriceHistoryModal from './PriceHistoryModal'
-import { printVendorItemList, printVendorCategoryItemList } from '../utils/printVendorList'
+import { printVendorItemList } from '../utils/printVendorList'
 
+/**
+ * Vendor View: Vendors (A-Z) -> Categories, accordion style. Clicking a
+ * category expands it inline to show its items, instead of navigating to
+ * a separate items screen.
+ */
 export default function SupplierView({ navRequest, onNavConsumed }) {
-  const [step, setStep] = useState('vendors') // 'vendors' | 'categories' | 'items'
+  const [step, setStep] = useState('vendors') // 'vendors' | 'categories'
 
   const [suppliers, setSuppliers] = useState([])
   const [loadingSuppliers, setLoadingSuppliers] = useState(true)
@@ -25,12 +28,9 @@ export default function SupplierView({ navRequest, onNavConsumed }) {
   const [categories, setCategories] = useState([])
   const [loadingCategories, setLoadingCategories] = useState(false)
 
-  const [activeCategory, setActiveCategory] = useState(null)
-  const [items, setItems] = useState([])
-  const [loadingItems, setLoadingItems] = useState(false)
-
   const [editCell, setEditCell] = useState(null)
   const [historyCell, setHistoryCell] = useState(null)
+  const [onEditSavedExtra, setOnEditSavedExtra] = useState(null) // per-category refresh callback
 
   const [printingAll, setPrintingAll] = useState(false)
 
@@ -46,13 +46,6 @@ export default function SupplierView({ navRequest, onNavConsumed }) {
   const loadCategories = useCallback((supplierId) => {
     setLoadingCategories(true)
     getSupplierCategories(supplierId).then(({ data }) => setCategories(data)).finally(() => setLoadingCategories(false))
-  }, [])
-
-  const loadItems = useCallback((supplierId, categoryId) => {
-    setLoadingItems(true)
-    getSupplierCategoryItems(supplierId, categoryId)
-      .then(({ data }) => setItems(data.items))
-      .finally(() => setLoadingItems(false))
   }, [])
 
   const handleSelectSupplier = (supplier) => {
@@ -72,31 +65,18 @@ export default function SupplierView({ navRequest, onNavConsumed }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navRequest, suppliers])
 
-  const handleSelectCategory = (category) => {
-    setActiveCategory({ id: category.category_id, name: category.category_name })
-    setStep('items')
-    loadItems(activeSupplier.id, category.category_id)
-  }
-
   const handleBackToVendors = () => {
-    setStep('vendors'); setActiveSupplier(null); setCategories([])
-  }
-  const handleBackToCategories = () => {
-    setStep('categories'); setActiveCategory(null); setItems([])
-  }
-
-  const refreshItems = () => {
-    if (activeSupplier && activeCategory) loadItems(activeSupplier.id, activeCategory.id)
+    setStep('vendors')
+    setActiveSupplier(null)
+    setCategories([])
   }
 
-    const handlePrintAll = async () => {
+  const handlePrintAll = async () => {
     if (!activeSupplier) return
 
     // Open the window SYNCHRONOUSLY, right here in the click handler,
-    // before the await below. iOS Safari only allows window.open() inside
-    // the original user-gesture call stack - once we await a fetch first,
-    // Safari silently blocks the popup and nothing happens (this was why
-    // "Print Item List" seemed to do nothing on iPhone).
+    // before the await below - iOS Safari only allows window.open() inside
+    // the original user-gesture call stack.
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
       alert('Please allow pop-ups for this site to print the item list.')
@@ -118,11 +98,6 @@ export default function SupplierView({ navRequest, onNavConsumed }) {
     }
   }
 
-  const handlePrintCategory = () => {
-    if (!activeSupplier || !activeCategory) return
-    printVendorCategoryItemList(activeSupplier.name, activeCategory.name, items)
-  }
-
   return (
     <div>
       {step === 'vendors' && (
@@ -135,21 +110,10 @@ export default function SupplierView({ navRequest, onNavConsumed }) {
           categories={categories}
           loading={loadingCategories}
           onBack={handleBackToVendors}
-          onSelect={handleSelectCategory}
-          onPrint={handlePrintAll}
-          printing={printingAll}
-        />
-      )}
-
-      {step === 'items' && activeSupplier && activeCategory && (
-        <VendorCategoryItemList
-          supplier={activeSupplier}
-          category={activeCategory}
-          items={items}
-          loading={loadingItems}
-          onBack={handleBackToCategories}
-          onPrint={handlePrintCategory}
-          onEdit={(item) =>
+          onPrintAll={handlePrintAll}
+          printingAll={printingAll}
+          onEditVendor={(item, refreshCallback) => {
+            setOnEditSavedExtra(() => refreshCallback)
             setEditCell({
               supplier_product_id: item.supplier_product_id,
               product_id: item.product_id,
@@ -165,10 +129,10 @@ export default function SupplierView({ navRequest, onNavConsumed }) {
               supplierName: activeSupplier.name,
               variant_code_or_size: item.variant_code_or_size,
               department_id: item.department_id,
-              category_id: activeCategory.id,
+              category_id: item.category_id,
             })
-          }
-          onHistory={(item) =>
+          }}
+          onHistoryVendor={(item) =>
             setHistoryCell({
               supplier_product_id: item.supplier_product_id,
               productName: item.product_name,
@@ -181,11 +145,24 @@ export default function SupplierView({ navRequest, onNavConsumed }) {
       )}
 
       {editCell && (
-        <EditPriceModal cell={editCell} onClose={() => setEditCell(null)} onSaved={() => { setEditCell(null); refreshItems() }} />
+        <EditPriceModal
+          cell={editCell}
+          onClose={() => { setEditCell(null); setOnEditSavedExtra(null) }}
+          onSaved={() => {
+            setEditCell(null)
+            if (onEditSavedExtra) onEditSavedExtra()
+            setOnEditSavedExtra(null)
+            loadCategories(activeSupplier.id) // item counts may have shifted
+          }}
+        />
       )}
 
       {historyCell && (
-        <PriceHistoryModal supplierProductId={historyCell.supplier_product_id} cellInfo={historyCell} onClose={() => setHistoryCell(null)} />
+        <PriceHistoryModal
+          supplierProductId={historyCell.supplier_product_id}
+          cellInfo={historyCell}
+          onClose={() => setHistoryCell(null)}
+        />
       )}
     </div>
   )

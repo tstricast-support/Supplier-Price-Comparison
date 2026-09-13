@@ -69,6 +69,7 @@ def get_supplier_category_items(supplier_id: int, category_id: int, db: Session 
             variant_code_or_size=sp.product.variant_code_or_size,
             department_id=sp.product.department_id,
             department_name=sp.product.department.name,
+            category_id=sp.product.category_id,
             pricing_mode=sp.pricing_mode,
             length=sp.length,
             length_unit=sp.length_unit,
