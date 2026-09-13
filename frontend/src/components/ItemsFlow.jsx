@@ -102,6 +102,7 @@ export default function ItemsFlow({ refreshKey, navRequest, onNavConsumed }) {
             })
           }
           highlightProductId={highlightProductId}
+          onSubitemCreated={refreshItems}
         />
       )}
 

@@ -8,6 +8,11 @@ Powers the new Browse flow:
 Also powers the Items tab:
   Category (A-Z) -> unique items, A-Z (deduped across departments)
     -> merged vendor list across every department that item lives in
+
+Subitems (Product rows with parent_id set) are never listed as their own
+top-level row in any of these views - they only ever appear nested inside
+their parent item's `subitems` list. Every query below filters top-level
+listings down to `Product.parent_id.is_(None)`.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
@@ -16,6 +21,63 @@ from app.database import get_db
 from app import models, schemas
 
 router = APIRouter(prefix="/api", tags=["navigation"])
+
+
+def _build_subitem_groups(db: Session, parent_id: int) -> list[schemas.SubitemGroupOut]:
+    """Immediate children of `parent_id`, each with every vendor price it
+    currently has. Used to nest subitems under their parent row instead of
+    listing them as independent top-level items."""
+    subitems = (
+        db.query(models.Product)
+        .filter(models.Product.parent_id == parent_id)
+        .order_by(models.Product.name)
+        .all()
+    )
+    if not subitems:
+        return []
+
+    sub_ids = [s.id for s in subitems]
+    sp_list = (
+        db.query(models.SupplierProduct)
+        .options(joinedload(models.SupplierProduct.supplier))
+        .filter(models.SupplierProduct.product_id.in_(sub_ids))
+        .join(models.Supplier)
+        .order_by(models.Supplier.name)
+        .all()
+    )
+    sp_by_product = {}
+    for sp in sp_list:
+        sp_by_product.setdefault(sp.product_id, []).append(sp)
+
+    groups = []
+    for sub in subitems:
+        sub_sp_list = sp_by_product.get(sub.id, [])
+        cheapest_id = min(sub_sp_list, key=lambda sp: sp.unit_price).id if sub_sp_list else None
+        groups.append(
+            schemas.SubitemGroupOut(
+                product_id=sub.id,
+                product_name=sub.name,
+                variant_code_or_size=sub.variant_code_or_size,
+                vendors=[
+                    schemas.VendorOfferOut(
+                        supplier_product_id=sp.id,
+                        supplier_id=sp.supplier_id,
+                        supplier_name=sp.supplier.name,
+                        pricing_mode=sp.pricing_mode,
+                        length=sp.length,
+                        length_unit=sp.length_unit,
+                        width=sp.width,
+                        width_unit=sp.width_unit,
+                        total_price=sp.total_price,
+                        total_length_or_quantity=sp.total_length_or_quantity,
+                        unit_price=sp.unit_price,
+                        is_cheapest=(sp.id == cheapest_id),
+                    )
+                    for sp in sub_sp_list
+                ],
+            )
+        )
+    return groups
 
 
 @router.get("/departments/{department_id}/items", response_model=schemas.DepartmentItemsResponse)
@@ -27,7 +89,7 @@ def get_department_items(department_id: int, db: Session = Depends(get_db)):
     products = (
         db.query(models.Product)
         .options(joinedload(models.Product.category))
-        .filter(models.Product.department_id == department_id)
+        .filter(models.Product.department_id == department_id, models.Product.parent_id.is_(None))
         .order_by(models.Product.name, models.Product.variant_code_or_size)
         .all()
     )
@@ -71,7 +133,7 @@ def get_department_categories(department_id: int, db: Session = Depends(get_db))
     products = (
         db.query(models.Product)
         .options(joinedload(models.Product.category))
-        .filter(models.Product.department_id == department_id)
+        .filter(models.Product.department_id == department_id, models.Product.parent_id.is_(None))
         .all()
     )
 
@@ -110,6 +172,7 @@ def get_department_category_items(department_id: int, category_id: int, db: Sess
         .filter(
             models.Product.department_id == department_id,
             models.Product.category_id == category_id,
+            models.Product.parent_id.is_(None),
         )
         .order_by(models.Product.name, models.Product.variant_code_or_size)
         .all()
@@ -153,6 +216,11 @@ def get_department_category_vendor_items(department_id: int, category_id: int, d
     its vendor offers already attached - no separate "pick item -> pick
     vendor" screen. Items with zero vendor offers are still included (with
     an empty vendors list) so the "+ Add Vendor" action stays reachable.
+
+    Only top-level items (parent_id is None) are listed here - a subitem
+    is never its own row in this list. Instead, each top-level item's
+    `subitems` field carries its immediate children (with their own vendor
+    offers), so the frontend can nest them under the parent row.
     """
     department = db.query(models.Department).filter(models.Department.id == department_id).first()
     if not department:
@@ -167,6 +235,7 @@ def get_department_category_vendor_items(department_id: int, category_id: int, d
         .filter(
             models.Product.department_id == department_id,
             models.Product.category_id == category_id,
+            models.Product.parent_id.is_(None),
         )
         .order_by(models.Product.name, models.Product.variant_code_or_size)
         .all()
@@ -211,6 +280,7 @@ def get_department_category_vendor_items(department_id: int, category_id: int, d
                 product_name=product.name,
                 variant_code_or_size=product.variant_code_or_size,
                 vendors=vendors,
+                subitems=_build_subitem_groups(db, product.id),
             )
         )
 
@@ -227,6 +297,7 @@ def get_category_vendor_items(category_id: int, db: Session = Depends(get_db)):
     category, in ONE list - no "pick item, then pick vendor" sub-screen.
     Items with the same name+variant across departments are still merged
     (their vendor offers combined), same dedup rule as get_category_items.
+    Subitems are excluded here too (parent_id is None).
     """
     category = db.query(models.Category).filter(models.Category.id == category_id).first()
     if not category:
@@ -235,7 +306,7 @@ def get_category_vendor_items(category_id: int, db: Session = Depends(get_db)):
     products = (
         db.query(models.Product)
         .options(joinedload(models.Product.department))
-        .filter(models.Product.category_id == category_id)
+        .filter(models.Product.category_id == category_id, models.Product.parent_id.is_(None))
         .all()
     )
 
@@ -282,6 +353,7 @@ def get_category_vendor_items(category_id: int, db: Session = Depends(get_db)):
                     total_length_or_quantity=sp.total_length_or_quantity,
                     unit_price=sp.unit_price,
                     is_cheapest=(sp.id == cheapest_id),
+                    subitems=_build_subitem_groups(db, sp.product_id),
                 )
             )
 
@@ -361,7 +433,8 @@ def get_category_items(category_id: int, db: Session = Depends(get_db)):
     separate Product rows in multiple departments (created together via the
     multi-department New Product form) - those are merged into one row here,
     with vendor_count and cheapest_unit_price combined across all of them,
-    so the same item never appears twice in the list.
+    so the same item never appears twice in the list. Subitems are excluded
+    (parent_id is None) - they show up nested under their parent instead.
     """
     category = db.query(models.Category).filter(models.Category.id == category_id).first()
     if not category:
@@ -369,7 +442,7 @@ def get_category_items(category_id: int, db: Session = Depends(get_db)):
 
     products = (
         db.query(models.Product)
-        .filter(models.Product.category_id == category_id)
+        .filter(models.Product.category_id == category_id, models.Product.parent_id.is_(None))
         .order_by(models.Product.name)
         .all()
     )

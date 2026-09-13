@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import (
     Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from app.database import Base
 
 
@@ -39,10 +39,32 @@ class Product(Base):
     # forward via the ProductCreate schema (see below).
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
 
+    # Self-referential "subitem" link: an item that lives inside another
+    # item (e.g. a specific finish/option of a parent product), with its own
+    # name and its own vendor price(s) via SupplierProduct, same as any
+    # top-level item. NULL means this is a normal, top-level item.
+    #
+    # New column on an existing database - if upgrading in place, run once:
+    #   ALTER TABLE products ADD COLUMN parent_id INTEGER
+    #     REFERENCES products(id) ON DELETE CASCADE;
+    #   CREATE INDEX ix_products_parent_id ON products (parent_id);
+    # Base.metadata.create_all() only creates missing TABLES, it will not
+    # add columns to a table that already exists.
+    parent_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=True, index=True)
+
     department = relationship("Department", back_populates="products")
     category = relationship("Category", back_populates="products")
     supplier_products = relationship(
         "SupplierProduct", back_populates="product", cascade="all, delete-orphan"
+    )
+
+    # Adjacency-list self-reference: deleting a parent item deletes its
+    # subitems too (cascade="all, delete-orphan" on the "many" side).
+    subitems = relationship(
+        "Product",
+        backref=backref("parent", remote_side=[id]),
+        cascade="all, delete-orphan",
+        single_parent=True,
     )
 
     __table_args__ = (

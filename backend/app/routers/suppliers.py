@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
+from app.routers.navigation import _build_subitem_groups
 
 from app.database import get_db
 from app import models, schemas
@@ -56,6 +57,7 @@ def get_supplier_category_items(supplier_id: int, category_id: int, db: Session 
         .filter(
             models.SupplierProduct.supplier_id == supplier_id,
             models.Product.category_id == category_id,
+            models.Product.parent_id.is_(None),
         )
         .order_by(models.Product.name)
         .all()
@@ -78,6 +80,7 @@ def get_supplier_category_items(supplier_id: int, category_id: int, db: Session 
             total_price=sp.total_price,
             total_length_or_quantity=sp.total_length_or_quantity,
             unit_price=sp.unit_price,
+            subitems=_build_subitem_groups(db, sp.product.id),
         )
         for sp in sp_list
     ]

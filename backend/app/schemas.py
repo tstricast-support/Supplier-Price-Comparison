@@ -36,6 +36,7 @@ class ProductOut(BaseModel):
     department_id: int
     category_id: Optional[int] = None
     category_name: Optional[str] = None
+    parent_id: Optional[int] = None
 
 
 class ProductCreate(BaseModel):
@@ -107,6 +108,7 @@ class SupplierCategoryItemOut(BaseModel):
     total_price: float
     total_length_or_quantity: float
     unit_price: float
+    subitems: List["SubitemGroupOut"] = []
 
 
 class SupplierCategoryItemsResponse(BaseModel):
@@ -193,6 +195,50 @@ class PriceHistoryOut(BaseModel):
     timestamp: datetime
 
 
+# ---------- Subitems (an item nested inside another item) ----------
+
+class SubitemCreate(SupplierProductBase):
+    """
+    Creates a subitem (a new Product with parent_id set) AND its first
+    vendor price in one call. The vendor is supplied by the caller - in
+    practice, whatever vendor context the create-subitem action was
+    triggered from (e.g. the vendor already selected in the price-edit
+    form, or a vendor picker shown when there's no such context yet).
+    """
+    name: str
+    variant_code_or_size: Optional[str] = None
+    supplier_id: int
+
+
+class SubitemDetailOut(BaseModel):
+    product: ProductOut
+    supplier_product: SupplierProductOut
+
+
+class VendorOfferOut(BaseModel):
+    supplier_product_id: int
+    supplier_id: int
+    supplier_name: str
+    pricing_mode: str
+    length: Optional[float] = None
+    length_unit: Optional[str] = None
+    width: Optional[float] = None
+    width_unit: Optional[str] = None
+    total_price: float
+    total_length_or_quantity: float
+    unit_price: float
+    is_cheapest: bool = False
+
+
+class SubitemGroupOut(BaseModel):
+    """One subitem plus every vendor price it currently has, for display
+    under its parent item (e.g. inside the price-edit form)."""
+    product_id: int
+    product_name: str
+    variant_code_or_size: Optional[str] = None
+    vendors: List[VendorOfferOut] = []
+
+
 # ---------- Matrix View (legacy, still used internally) ----------
 
 class MatrixCell(BaseModel):
@@ -257,21 +303,6 @@ class DepartmentCategoryItemsResponse(BaseModel):
     items: List[ItemSummaryOut]
 
 
-class VendorOfferOut(BaseModel):
-    supplier_product_id: int
-    supplier_id: int
-    supplier_name: str
-    pricing_mode: str
-    length: Optional[float] = None
-    length_unit: Optional[str] = None
-    width: Optional[float] = None
-    width_unit: Optional[str] = None
-    total_price: float
-    total_length_or_quantity: float
-    unit_price: float
-    is_cheapest: bool = False
-
-
 class ItemVendorsResponse(BaseModel):
     product: ProductOut
     department_name: str
@@ -283,6 +314,7 @@ class DeptCategoryItemGroupOut(BaseModel):
     product_name: str
     variant_code_or_size: Optional[str] = None
     vendors: List[VendorOfferOut] = []
+    subitems: List[SubitemGroupOut] = []
 
 
 class DepartmentCategoryVendorItemsResponse(BaseModel):
@@ -324,6 +356,7 @@ class CategoryVendorItemOut(BaseModel):
     total_length_or_quantity: float
     unit_price: float
     is_cheapest: bool = False
+    subitems: List["SubitemGroupOut"] = []
 
 
 class CategoryVendorItemsResponse(BaseModel):

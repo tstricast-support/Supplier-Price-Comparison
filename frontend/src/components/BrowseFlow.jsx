@@ -39,6 +39,10 @@ export default function BrowseFlow({ refreshKey }) {
     setLoadingDepartments(true)
     getDepartments()
       .then(({ data }) => setDepartments(data))
+      .catch((err) => {
+        console.error('Failed to load departments:', err)
+        setDepartments([])
+      })
       .finally(() => setLoadingDepartments(false))
   }, [])
 
@@ -50,13 +54,21 @@ export default function BrowseFlow({ refreshKey }) {
     setLoadingCategories(true)
     getDepartmentCategories(departmentId)
       .then(({ data }) => setCategories(data))
+      .catch((err) => {
+        console.error('Failed to load categories:', err)
+        setCategories([])
+      })
       .finally(() => setLoadingCategories(false))
   }, [])
 
   const loadItems = useCallback((departmentId, categoryId) => {
     setLoadingItems(true)
     getDepartmentCategoryVendorItems(departmentId, categoryId)
-      .then(({ data }) => setItems(data.items))
+      .then(({ data }) => setItems(data.items ?? []))
+      .catch((err) => {
+        console.error('Failed to load items:', err)
+        setItems([])
+      })
       .finally(() => setLoadingItems(false))
   }, [])
 
@@ -95,6 +107,18 @@ export default function BrowseFlow({ refreshKey }) {
 
   const refreshItems = () => {
     if (activeDepartment && activeCategory) loadItems(activeDepartment.id, activeCategory.category_id)
+  }
+
+  // Finds either a top-level item or one of its subitems by product_id, so
+  // "existing vendors" can be computed correctly no matter which row the
+  // Add Vendor action was triggered from.
+  const findItemOrSubitem = (productId) => {
+    for (const it of items) {
+      if (it.product_id === productId) return it
+      const sub = (it.subitems || []).find((s) => s.product_id === productId)
+      if (sub) return sub
+    }
+    return null
   }
 
   return (
@@ -155,6 +179,7 @@ export default function BrowseFlow({ refreshKey }) {
               pricing_mode: v.pricing_mode,
             })
           }
+          onSubitemCreated={refreshItems}
         />
       )}
 
@@ -162,7 +187,7 @@ export default function BrowseFlow({ refreshKey }) {
         <AddVendorModal
           item={addVendorItem}
           existingVendorIds={
-            items.find((it) => it.product_id === addVendorItem.id)?.vendors.map((v) => v.supplier_id) || []
+            findItemOrSubitem(addVendorItem.id)?.vendors.map((v) => v.supplier_id) || []
           }
           onClose={() => setAddVendorItem(null)}
           onCreated={() => {

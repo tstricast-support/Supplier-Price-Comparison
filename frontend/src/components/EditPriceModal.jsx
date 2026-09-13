@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X, Save, Tag, Layers, Building2, PlusCircle, CheckCircle2, AlertCircle } from 'lucide-react'
+import { X, Save, Tag, Layers, Building2, PlusCircle, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react'
 import {
   getDepartments,
   getCategories,
@@ -7,11 +7,14 @@ import {
   updateProduct,
   updateSupplierProduct,
   getVendorSiblings,
+  getSubitems,
 } from '../api/endpoints'
 import { formatRs } from '../utils/currency'
 import SearchableSelect from './SearchableSelect'
 import QuickCreateVendorModal from './QuickCreateVendorModal'
 import QuickCreateCategoryModal from './QuickCreateCategoryModal'
+import SubitemCreateModal from './SubitemCreateModal'
+import AddVendorModal from './AddVendorModal'
 import { PricingModePicker, DimensionField, toInches } from './PricingFields'
 
 /**
@@ -67,11 +70,32 @@ export default function EditPriceModal({ cell, onClose, onSaved }) {
   const [siblingErrors, setSiblingErrors] = useState([])
   const [siblingFlowDone, setSiblingFlowDone] = useState(false)
 
+  // --- Subitems (items nested inside this item) ---
+  const [subitems, setSubitems] = useState([])
+  const [loadingSubitems, setLoadingSubitems] = useState(false)
+  const [expandedSubitemId, setExpandedSubitemId] = useState(null)
+  const [showCreateSubitem, setShowCreateSubitem] = useState(false)
+  const [subitemAddVendorTarget, setSubitemAddVendorTarget] = useState(null)
+  const [nestedEditCell, setNestedEditCell] = useState(null)
+
   useEffect(() => {
     getDepartments().then(({ data }) => setDepartments(data))
     getCategories().then(({ data }) => setCategories(data))
     getSuppliers().then(({ data }) => setVendors(data)).finally(() => setLoadingVendors(false))
   }, [])
+
+  const loadSubitems = () => {
+    if (!cell?.product_id) return
+    setLoadingSubitems(true)
+    getSubitems(cell.product_id)
+      .then(({ data }) => setSubitems(data))
+      .finally(() => setLoadingSubitems(false))
+  }
+
+  useEffect(() => {
+    loadSubitems()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cell?.product_id])
 
   const categoryOptions = useMemo(() => categories.map((c) => ({ id: c.id, label: c.name })), [categories])
   const vendorOptions = useMemo(() => vendors.map((v) => ({ id: v.id, label: v.name })), [vendors])
@@ -82,7 +106,7 @@ export default function EditPriceModal({ cell, onClose, onSaved }) {
   const areaLabel = pricingMode === 'sq_inch' ? 'sq in' : 'sq ft'
   const areaSqIn = isArea && length && width ? toInches(length, lengthUnit) * toInches(width, widthUnit) : 0
   const divisor = isArea ? (pricingMode === 'sq_feet' ? areaSqIn / 144 : areaSqIn) : Number(quantity) || 0
-  const unitPricePreview = totalPrice && divisor > 0 ? (Number(totalPrice) / divisor).toFixed(4) : '-'
+  const unitPricePreview = totalPrice && divisor > 0 ? (Number(totalPrice) / divisor).toFixed(2) : '-'
 
   const handleModeChange = (mode) => {
     setPricingMode(mode)
@@ -449,7 +473,7 @@ export default function EditPriceModal({ cell, onClose, onSaved }) {
               {isArea && divisor > 0 && (
                 <div className="mb-1 text-xs text-brand-600">Area: {divisor.toFixed(2)} {areaLabel}</div>
               )}
-              Calculated unit price: <span className="font-semibold">{formatRs(unitPricePreview, 4)}</span>
+              Calculated unit price: <span className="font-semibold">{formatRs(unitPricePreview, 2)}</span>
               <span className="ml-1 text-xs font-normal text-brand-500">/ {isArea ? areaLabel : 'unit'}</span>
             </div>
           </div>
@@ -463,7 +487,144 @@ export default function EditPriceModal({ cell, onClose, onSaved }) {
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </form>
+
+        {/* --- Subitems: items nested inside this item --- */}
+        <div className="mt-5 space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Subitems{subitems.length > 0 ? ` (${subitems.length})` : ''}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowCreateSubitem(true)}
+              className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
+            >
+              <PlusCircle size={13} /> Add Subitem
+            </button>
+          </div>
+
+          {loadingSubitems && <p className="text-xs text-gray-500">Loading subitems...</p>}
+
+          {!loadingSubitems && subitems.length === 0 && (
+            <p className="text-xs text-gray-400">
+              No subitems yet. "Add Subitem" creates a new item inside this item, priced from{' '}
+              {cell.supplierName}.
+            </p>
+          )}
+
+          {!loadingSubitems && subitems.length > 0 && (
+            <ul className="space-y-2">
+              {subitems.map((sub) => {
+                const isOpen = expandedSubitemId === sub.product_id
+                const cheapest = sub.vendors.find((v) => v.is_cheapest)
+                return (
+                  <li key={sub.product_id} className="rounded-lg border border-gray-200 bg-white">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedSubitemId((prev) => (prev === sub.product_id ? null : sub.product_id))}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
+                    >
+                      <span className="min-w-0 truncate text-sm font-medium text-gray-900">{sub.product_name}</span>
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {cheapest ? (
+                          <span className="text-xs font-semibold text-green-700">from {formatRs(cheapest.unit_price, 2)}</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">No price yet</span>
+                        )}
+                        <ChevronDown size={14} className={`text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      </span>
+                    </button>
+
+                    {isOpen && (
+                      <div className="space-y-1.5 border-t border-gray-100 p-2.5">
+                        {sub.vendors.map((v) => (
+                          <button
+                            key={v.supplier_product_id}
+                            type="button"
+                            onClick={() =>
+                              setNestedEditCell({
+                                supplier_product_id: v.supplier_product_id,
+                                product_id: sub.product_id,
+                                supplier_id: v.supplier_id,
+                                total_price: v.total_price,
+                                total_length_or_quantity: v.total_length_or_quantity,
+                                pricing_mode: v.pricing_mode,
+                                length: v.length,
+                                length_unit: v.length_unit,
+                                width: v.width,
+                                width_unit: v.width_unit,
+                                productName: sub.product_name,
+                                supplierName: v.supplier_name,
+                                variant_code_or_size: sub.variant_code_or_size,
+                                department_id: Number(departmentId) || cell.department_id,
+                                category_id: Number(categoryId) || cell.category_id,
+                              })
+                            }
+                            className="flex w-full items-center justify-between rounded-lg bg-gray-50 px-2.5 py-2 text-xs hover:bg-gray-100"
+                          >
+                            <span className="text-gray-700">{v.supplier_name}</span>
+                            <span className="font-semibold text-gray-900">{formatRs(v.unit_price, 2)}</span>
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSubitemAddVendorTarget({
+                              id: sub.product_id,
+                              name: sub.product_name,
+                              variant_code_or_size: sub.variant_code_or_size,
+                            })
+                          }
+                          className="flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 px-2.5 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50"
+                        >
+                          <PlusCircle size={12} /> Add vendor to this subitem
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
       </div>
+
+      {showCreateSubitem && (
+        <SubitemCreateModal
+          parent={{ id: cell.product_id, name: name || cell.productName }}
+          supplier={{ id: cell.supplier_id, name: cell.supplierName }}
+          onClose={() => setShowCreateSubitem(false)}
+          onCreated={() => {
+            setShowCreateSubitem(false)
+            loadSubitems()
+          }}
+        />
+      )}
+
+      {subitemAddVendorTarget && (
+        <AddVendorModal
+          item={subitemAddVendorTarget}
+          existingVendorIds={
+            subitems.find((s) => s.product_id === subitemAddVendorTarget.id)?.vendors.map((v) => v.supplier_id) || []
+          }
+          onClose={() => setSubitemAddVendorTarget(null)}
+          onCreated={() => {
+            setSubitemAddVendorTarget(null)
+            loadSubitems()
+          }}
+        />
+      )}
+
+      {nestedEditCell && (
+        <EditPriceModal
+          cell={nestedEditCell}
+          onClose={() => setNestedEditCell(null)}
+          onSaved={() => {
+            setNestedEditCell(null)
+            loadSubitems()
+          }}
+        />
+      )}
 
       {showCreateVendor && (
         <QuickCreateVendorModal

@@ -280,6 +280,137 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
     return {"detail": "Deleted"}
 
 
+# ---------- Subitems (an item nested inside another item) ----------
+
+@router.post("/products/{parent_id}/subitems", response_model=schemas.SubitemDetailOut)
+def create_subitem(parent_id: int, payload: schemas.SubitemCreate, db: Session = Depends(get_db)):
+    """
+    Creates a new item "inside" an existing item - same department and
+    category as the parent, linked via parent_id - plus its first vendor
+    price, in one step. Powers:
+      - the mobile long-press "Create subitem?" flow on an item row, and
+      - the "+ Add Subitem" action inside the price-edit form (desktop and
+        mobile), where the vendor is already known from context.
+    """
+    parent = db.query(models.Product).filter(models.Product.id == parent_id).first()
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent item not found")
+
+    supplier = db.query(models.Supplier).filter(models.Supplier.id == payload.supplier_id).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+
+    clean_variant = payload.variant_code_or_size.strip() if payload.variant_code_or_size else None
+
+    clash = (
+        db.query(models.Product)
+        .filter(
+            models.Product.parent_id == parent_id,
+            models.Product.name.ilike(payload.name.strip()),
+            models.Product.variant_code_or_size == clean_variant,
+        )
+        .first()
+    )
+    if clash:
+        raise HTTPException(
+            status_code=400,
+            detail="A subitem with this name already exists under this item.",
+        )
+
+    subitem = models.Product(
+        name=payload.name.strip(),
+        variant_code_or_size=clean_variant,
+        department_id=parent.department_id,
+        category_id=parent.category_id,
+        parent_id=parent.id,
+    )
+    db.add(subitem)
+    db.flush()  # assigns subitem.id, needed for the SupplierProduct row below
+
+    total_len_or_qty, length, length_unit, width, width_unit = _resolve_dimensions(payload)
+
+    sp = models.SupplierProduct(
+        supplier_id=payload.supplier_id,
+        product_id=subitem.id,
+        pricing_mode=payload.pricing_mode,
+        length=length,
+        length_unit=length_unit,
+        width=width,
+        width_unit=width_unit,
+        total_price=payload.total_price,
+        total_length_or_quantity=total_len_or_qty,
+    )
+    sp.unit_price = sp.compute_unit_price()
+    db.add(sp)
+    db.commit()
+    db.refresh(subitem)
+    db.refresh(sp)
+
+    return schemas.SubitemDetailOut(
+        product=schemas.ProductOut.model_validate(subitem),
+        supplier_product=schemas.SupplierProductOut.model_validate(sp),
+    )
+
+
+@router.get("/products/{product_id}/subitems", response_model=list[schemas.SubitemGroupOut])
+def get_subitems(product_id: int, db: Session = Depends(get_db)):
+    """Direct children of this item (one level), each with every vendor
+    price it currently has. Powers the "Subitems" panel in the price-edit
+    form."""
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    subitems = (
+        db.query(models.Product)
+        .filter(models.Product.parent_id == product_id)
+        .order_by(models.Product.name)
+        .all()
+    )
+
+    groups = []
+    for sub in subitems:
+        sp_list = (
+            db.query(models.SupplierProduct)
+            .options(joinedload(models.SupplierProduct.supplier))
+            .filter(models.SupplierProduct.product_id == sub.id)
+            .join(models.Supplier)
+            .order_by(models.Supplier.name)
+            .all()
+        )
+
+        cheapest_id = min(sp_list, key=lambda sp: sp.unit_price).id if sp_list else None
+
+        vendors = [
+            schemas.VendorOfferOut(
+                supplier_product_id=sp.id,
+                supplier_id=sp.supplier_id,
+                supplier_name=sp.supplier.name,
+                pricing_mode=sp.pricing_mode,
+                length=sp.length,
+                length_unit=sp.length_unit,
+                width=sp.width,
+                width_unit=sp.width_unit,
+                total_price=sp.total_price,
+                total_length_or_quantity=sp.total_length_or_quantity,
+                unit_price=sp.unit_price,
+                is_cheapest=(sp.id == cheapest_id),
+            )
+            for sp in sp_list
+        ]
+
+        groups.append(
+            schemas.SubitemGroupOut(
+                product_id=sub.id,
+                product_name=sub.name,
+                variant_code_or_size=sub.variant_code_or_size,
+                vendors=vendors,
+            )
+        )
+
+    return groups
+
+
 @router.post("/supplier-products", response_model=schemas.SupplierProductOut)
 def create_supplier_product(payload: schemas.SupplierProductCreate, db: Session = Depends(get_db)):
     existing = (

@@ -1,13 +1,18 @@
 import { useState, useMemo } from 'react'
-import { ChevronLeft, ChevronDown, Tag, Printer, Pencil, History, Package, Layers } from 'lucide-react'
+import { ChevronLeft, ChevronDown, ChevronRight, CornerDownRight, Tag, Printer, Pencil, History, Package, Layers } from 'lucide-react'
 import { getSupplierCategoryItems } from '../api/endpoints'
 import { formatRs, formatMeasurement, unitSuffix } from '../utils/currency'
+import useLongPress from '../utils/useLongPress'
+import ConfirmDialog from './ConfirmDialog'
+import SubitemCreateModal from './SubitemCreateModal'
 
 /**
  * Step 2 of Vendor View, accordion style: categories this vendor has items
  * in, A-Z. Clicking a category expands it inline (roll down) to show its
  * items right there on the same page - no separate "items" screen. Items
  * are fetched lazily the first time a category is opened, then cached.
+ * Subitems (if any) render as an indented sub-list under their parent row,
+ * showing only the price this vendor offers for that subitem.
  */
 export default function VendorCategoryList({
   supplier,
@@ -24,6 +29,9 @@ export default function VendorCategoryList({
   const [loadingCategoryId, setLoadingCategoryId] = useState(null)
   const [expandedItemKey, setExpandedItemKey] = useState(null) // supplier_product_id currently showing Edit/History
   const [errorByCategory, setErrorByCategory] = useState({})
+
+  const [subitemConfirmTarget, setSubitemConfirmTarget] = useState(null) // item row (or flattened subitem row)
+  const [subitemCreateTarget, setSubitemCreateTarget] = useState(null)
 
   const fetchCategoryItems = (catId) => {
     setLoadingCategoryId(catId)
@@ -135,68 +143,26 @@ export default function VendorCategoryList({
 
                     {!isLoadingItems && items.length > 0 && (
                       <ul className="space-y-2">
-                        {items.map((item) => {
-                          const itemIsOpen = expandedItemKey === item.supplier_product_id
-                          return (
-                            <li key={item.supplier_product_id} className="rounded-lg border border-gray-100 bg-gray-50">
-                              <button
-                                onClick={() =>
-                                  setExpandedItemKey((prev) =>
-                                    prev === item.supplier_product_id ? null : item.supplier_product_id
-                                  )
-                                }
-                                className="flex w-full items-start justify-between gap-3 p-3 text-left"
-                              >
-                                <div className="flex min-w-0 items-center gap-2">
-                                  <div className="shrink-0 rounded-lg bg-white p-1.5 ring-1 ring-gray-200">
-                                    <Package size={14} className="text-gray-500" />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-1.5">
-                                      <p className="truncate text-sm font-semibold text-gray-900">{item.product_name}</p>
-                                      {item.variant_code_or_size && (
-                                        <span className="shrink-0 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
-                                          {item.variant_code_or_size}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
-                                      <Layers size={9} /> {item.department_name}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="shrink-0 text-right">
-                                  <p className="text-sm font-bold text-gray-900">{formatRs(item.unit_price, 2)}</p>
-                                  <p className="text-[10px] text-gray-500">/ {unitSuffix(item.pricing_mode)}</p>
-                                </div>
-                              </button>
-
-                              {itemIsOpen && (
-                                <div className="border-t border-gray-200 p-3 pt-2.5">
-                                  <p className="mb-2 text-xs text-gray-500">
-                                    Total {formatRs(item.total_price)} for {formatMeasurement(item)}
-                                  </p>
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() =>
-                                        onEditVendor(item, () => refreshCategory(c.category_id))
-                                      }
-                                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700"
-                                    >
-                                      <Pencil size={13} /> Price Edit
-                                    </button>
-                                    <button
-                                      onClick={() => onHistoryVendor(item)}
-                                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-300 hover:bg-gray-100"
-                                    >
-                                      <History size={13} /> History
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </li>
-                          )
-                        })}
+                        {items.map((item) => (
+                          <ItemRow
+                            key={item.supplier_product_id}
+                            item={item}
+                            supplierId={supplier.id}
+                            categoryId={c.category_id}
+                            isOpen={expandedItemKey === item.supplier_product_id}
+                            onToggle={() =>
+                              setExpandedItemKey((prev) =>
+                                prev === item.supplier_product_id ? null : item.supplier_product_id
+                              )
+                            }
+                            onEdit={() => onEditVendor(item, () => refreshCategory(c.category_id))}
+                            onHistory={() => onHistoryVendor(item)}
+                            onLongPress={() => setSubitemConfirmTarget(item)}
+                            onEditSubitem={(flatSub) => onEditVendor(flatSub, () => refreshCategory(c.category_id))}
+                            onHistorySubitem={(flatSub) => onHistoryVendor(flatSub)}
+                            onSubitemLongPress={(flatSub) => setSubitemConfirmTarget(flatSub)}
+                          />
+                        ))}
                       </ul>
                     )}
                   </div>
@@ -206,6 +172,225 @@ export default function VendorCategoryList({
           })}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={!!subitemConfirmTarget}
+        danger={false}
+        title="Create a subitem?"
+        message={
+          subitemConfirmTarget ? `Create a new item inside "${subitemConfirmTarget.product_name}"?` : ''
+        }
+        confirmLabel="Create Subitem"
+        onCancel={() => setSubitemConfirmTarget(null)}
+        onConfirm={() => {
+          setSubitemCreateTarget(subitemConfirmTarget)
+          setSubitemConfirmTarget(null)
+        }}
+      />
+
+      {subitemCreateTarget && (
+        <SubitemCreateModal
+          parent={{ id: subitemCreateTarget.product_id, name: subitemCreateTarget.product_name }}
+          supplier={supplier}
+          onClose={() => setSubitemCreateTarget(null)}
+          onCreated={() => {
+            setSubitemCreateTarget(null)
+            if (expandedCategoryId) refreshCategory(expandedCategoryId)
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+/** One item row inside an expanded category. Long-press (or press-and-hold
+ * with a mouse) offers to create a subitem; a normal tap toggles it open.
+ * Its subitems (if any) render as an indented sub-list underneath, showing
+ * only the price this vendor offers for each subitem. */
+function ItemRow({
+  item,
+  supplierId,
+  categoryId,
+  isOpen,
+  onToggle,
+  onEdit,
+  onHistory,
+  onLongPress,
+  onEditSubitem,
+  onHistorySubitem,
+  onSubitemLongPress,
+}) {
+  const longPress = useLongPress(onLongPress, onToggle)
+  // Only show subitems that this vendor actually has a price for - this
+  // page is scoped to one vendor's prices, same as the top-level rows.
+  const subitems = (item.subitems || []).filter((sub) =>
+    (sub.vendors || []).some((v) => v.supplier_id === supplierId)
+  )
+  const [subitemsOpen, setSubitemsOpen] = useState(false)
+  const [expandedSubKey, setExpandedSubKey] = useState(null)
+
+  return (
+    <li className="rounded-lg border border-gray-100 bg-gray-50">
+      <button {...longPress} className="flex w-full items-start justify-between gap-3 p-3 text-left">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="shrink-0 rounded-lg bg-white p-1.5 ring-1 ring-gray-200">
+            <Package size={14} className="text-gray-500" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <p className="truncate text-sm font-semibold text-gray-900">{item.product_name}</p>
+              {item.variant_code_or_size && (
+                <span className="shrink-0 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
+                  {item.variant_code_or_size}
+                </span>
+              )}
+            </div>
+            <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
+              <Layers size={9} /> {item.department_name}
+            </span>
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-bold text-gray-900">{formatRs(item.unit_price, 2)}</p>
+          <p className="text-[10px] text-gray-500">/ {unitSuffix(item.pricing_mode)}</p>
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="border-t border-gray-200 p-3 pt-2.5">
+          <p className="mb-2 text-xs text-gray-500">
+            Total {formatRs(item.total_price)} for {formatMeasurement(item)}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={onEdit}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700"
+            >
+              <Pencil size={13} /> Price Edit
+            </button>
+            <button
+              onClick={onHistory}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-300 hover:bg-gray-100"
+            >
+              <History size={13} /> History
+            </button>
+          </div>
+        </div>
+      )}
+
+      {subitems.length > 0 && (
+        <div className="border-t border-gray-200">
+          <button
+            onClick={() => setSubitemsOpen((prev) => !prev)}
+            className="flex w-full items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-500 hover:bg-gray-100"
+          >
+            <ChevronRight size={14} className={`transition-transform ${subitemsOpen ? 'rotate-90' : ''}`} />
+            {subitems.length} subitem{subitems.length === 1 ? '' : 's'}
+          </button>
+
+          {subitemsOpen && (
+            <ul className="space-y-2 px-2 pb-2">
+              {subitems.map((sub) => (
+                <SubitemRow
+                  key={sub.product_id}
+                  subitem={sub}
+                  supplierId={supplierId}
+                  parentDepartmentId={item.department_id}
+                  categoryId={categoryId}
+                  isOpen={expandedSubKey === sub.product_id}
+                  onToggle={() => setExpandedSubKey((prev) => (prev === sub.product_id ? null : sub.product_id))}
+                  onEdit={onEditSubitem}
+                  onHistory={onHistorySubitem}
+                  onLongPress={onSubitemLongPress}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </li>
+  )
+}
+
+/** A subitem, indented under its parent, showing only this vendor's price
+ * for it. Long-press offers to create a subitem inside this subitem too,
+ * same as any other row. */
+function SubitemRow({ subitem, supplierId, parentDepartmentId, categoryId, isOpen, onToggle, onEdit, onHistory, onLongPress }) {
+  const vendor = (subitem.vendors || []).find((v) => v.supplier_id === supplierId)
+
+  // Flatten into the same shape as a top-level row (SupplierCategoryItemOut)
+  // so onEditVendor/onHistoryVendor/subitem-creation all work unchanged.
+  const flat = vendor && {
+    supplier_product_id: vendor.supplier_product_id,
+    product_id: subitem.product_id,
+    product_name: subitem.product_name,
+    variant_code_or_size: subitem.variant_code_or_size,
+    department_id: parentDepartmentId,
+    category_id: categoryId,
+    pricing_mode: vendor.pricing_mode,
+    length: vendor.length,
+    length_unit: vendor.length_unit,
+    width: vendor.width,
+    width_unit: vendor.width_unit,
+    total_price: vendor.total_price,
+    total_length_or_quantity: vendor.total_length_or_quantity,
+    unit_price: vendor.unit_price,
+  }
+
+  const longPress = useLongPress(() => flat && onLongPress(flat), () => flat && onToggle())
+
+  if (!flat) return null
+
+  return (
+    <li className="rounded-lg border border-gray-100 bg-white">
+      <button {...longPress} className="flex w-full items-start justify-between gap-3 p-3 pl-2 text-left">
+        <div className="flex min-w-0 items-center gap-2">
+          <CornerDownRight size={14} className="shrink-0 text-gray-400" />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <p className="truncate text-sm font-medium text-gray-900">{subitem.product_name}</p>
+              {subitem.variant_code_or_size && (
+                <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
+                  {subitem.variant_code_or_size}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="text-right">
+            <p className="text-sm font-bold text-gray-900">{formatRs(flat.unit_price, 2)}</p>
+            <p className="text-[10px] text-gray-500">/ {unitSuffix(flat.pricing_mode)}</p>
+          </div>
+          <ChevronDown
+            size={16}
+            className={`text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          />
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="border-t border-gray-100 p-3 pt-2.5">
+          <p className="mb-2 text-xs text-gray-500">
+            Total {formatRs(flat.total_price)} for {formatMeasurement(flat)}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onEdit(flat)}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700"
+            >
+              <Pencil size={12} /> Price Edit
+            </button>
+            <button
+              onClick={() => onHistory(flat)}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-300 hover:bg-gray-100"
+            >
+              <History size={12} /> History
+            </button>
+          </div>
+        </div>
+      )}
+    </li>
   )
 }

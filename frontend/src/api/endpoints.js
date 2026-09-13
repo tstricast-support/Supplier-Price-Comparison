@@ -91,6 +91,13 @@ export const getVendorSiblings = (productId, supplierId) =>
     params: { supplier_id: supplierId },
   })
 
+// ---- Subitems (an item nested inside another item) ----
+export const createSubitem = (parentProductId, payload) =>
+  api.post(`/api/admin/products/${parentProductId}/subitems`, payload)
+
+export const getSubitems = (productId) =>
+  api.get(`/api/admin/products/${productId}/subitems`)
+
 // ---- Price entries (open access, no login required) ----
 export const createSupplierProduct = (payload) =>
   api.post('/api/admin/supplier-products', payload)

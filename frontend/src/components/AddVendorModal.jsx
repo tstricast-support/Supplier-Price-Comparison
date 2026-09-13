@@ -67,7 +67,7 @@ export default function AddVendorModal({ item, existingVendorIds = [], onClose, 
   const areaLabel = pricingMode === 'sq_inch' ? 'sq in' : 'sq ft'
   const areaSqIn = isArea && length && width ? toInches(length, lengthUnit) * toInches(width, widthUnit) : 0
   const divisor = isArea ? (pricingMode === 'sq_feet' ? areaSqIn / 144 : areaSqIn) : Number(quantity) || 0
-  const unitPreview = totalPrice && divisor > 0 ? (Number(totalPrice) / divisor).toFixed(4) : '—'
+  const unitPreview = totalPrice && divisor > 0 ? (Number(totalPrice) / divisor).toFixed(2) : '—'
 
   const handleModeChange = (mode) => {
     setPricingMode(mode)
