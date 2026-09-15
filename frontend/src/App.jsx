@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { LayoutGrid, Settings, PlusCircle, Tag } from 'lucide-react'
+import { LayoutGrid, Settings, PlusCircle, Tag,FileText } from 'lucide-react'
 import BrowseFlow from './components/BrowseFlow'
 import SupplierView from './components/SupplierView'
 import AdminPanel from './components/AdminPanel'
 import CreateProductModal from './components/CreateProductModal'
 import ItemsFlow from './components/ItemsFlow'
 import GlobalSearchBar from './components/GlobalSearchBar'
+import PurchaseOrderTab from './components/PurchaseOrderTab'
 
 export default function App() {
   const [tab, setTab] = useState('browse') // 'browse' | 'items' | 'supplier' | 'manage'
@@ -79,6 +80,9 @@ export default function App() {
           <TabButton active={tab === 'manage'} onClick={() => setTab('manage')} icon={<Settings size={15} />}>
             Manage
           </TabButton>
+          <TabButton active={tab === 'po'} onClick={() => setTab('po')} icon={<FileText size={15} />}>
+            PO
+          </TabButton>
         </div>
       </header>
 
@@ -95,6 +99,7 @@ export default function App() {
           <SupplierView navRequest={vendorNav} onNavConsumed={() => setVendorNav(null)} />
         )}
         {tab === 'manage' && <AdminPanel />}
+        {tab === 'po' && <PurchaseOrderTab />}
       </main>
 
       {showCreateProduct && (

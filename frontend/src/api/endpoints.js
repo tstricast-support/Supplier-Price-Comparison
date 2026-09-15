@@ -110,3 +110,27 @@ export const getPriceHistory = (spId) =>
 
 // ---- Global search ----
 export const globalSearch = (q) => api.get('/api/search', { params: { q } })
+
+
+
+export const getDepartmentPOProfile = (departmentId) =>
+  api.get(`/api/departments/${departmentId}/po-profile`)
+ 
+export const getPOItems = (departmentId) =>
+  api.get(`/api/departments/${departmentId}/po-items`)
+ 
+export const getPurchaseOrders = (departmentId, search) =>
+  api.get('/api/purchase-orders', {
+    params: {
+      department_id: departmentId || undefined,
+      search: search || undefined,
+    },
+  })
+ 
+export const getPurchaseOrder = (poId) => api.get(`/api/purchase-orders/${poId}`)
+ 
+export const createPurchaseOrder = (payload) =>
+  api.post('/api/purchase-orders', payload)
+ 
+export const deletePurchaseOrder = (poId) =>
+  api.delete(`/api/purchase-orders/${poId}`)

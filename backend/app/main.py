@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
 from app.config import settings
-from app.routers import price_matrix, suppliers, admin, navigation,search
+from app.routers import price_matrix, suppliers, admin, navigation,search,purchase_orders
 
 Base.metadata.create_all(bind=engine)
 
@@ -26,6 +26,7 @@ app.include_router(suppliers.router)
 app.include_router(admin.router)
 app.include_router(navigation.router)
 app.include_router(search.router)
+app.include_router(purchase_orders.router)
 
 
 

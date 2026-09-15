@@ -143,3 +143,102 @@ class PriceHistory(Base):
     )
 
     supplier_product = relationship("SupplierProduct", back_populates="history")
+
+class PurchaseOrder(Base):
+    """
+    One issued Purchase Order. Belongs to exactly one department, which is
+    what makes it show up under that department in the PO tab.
+ 
+    The department letterhead (company name / address / phone / logo) is
+    SNAPSHOT onto the row at creation time, so re-downloading an old PO
+    always reprints the details it was actually issued with, even after the
+    profile in department_profiles.py is edited.
+    """
+    __tablename__ = "purchase_orders"
+ 
+    id = Column(Integer, primary_key=True, index=True)
+    po_number = Column(String(50), unique=True, nullable=False, index=True)
+    department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=False, index=True)
+ 
+    # Date shown on the PO. Filled automatically at creation.
+    po_date = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    customer_no = Column(String(50), nullable=True)
+ 
+    # Letterhead snapshot
+    company_name = Column(String(255), nullable=False, default="")
+    company_address_line1 = Column(String(255), nullable=True)
+    company_address_line2 = Column(String(255), nullable=True)
+    company_phone = Column(String(50), nullable=True)
+    company_email = Column(String(255), nullable=True)
+    company_website = Column(String(255), nullable=True)
+    company_contact = Column(String(255), nullable=True)
+    logo_text = Column(String(100), nullable=True)
+    logo_color = Column(String(20), nullable=True)
+    logo_url = Column(String(500), nullable=True)
+ 
+    # Vendor this PO is being sent TO (who you're buying from). Supplier only
+    # stores a name elsewhere in the system, so the mailing address is
+    # captured here, free text, snapshot at issue time like everything else.
+    supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="SET NULL"), nullable=True)
+    vendor_name = Column(String(255), nullable=True)
+    vendor_address = Column(String(1000), nullable=True)
+ 
+    # Bill To / Ship To describe the BUYER (this department) - where the
+    # vendor should send the invoice and deliver the goods. Defaults to the
+    # department's own letterhead details but stays editable (e.g. "ship to"
+    # a job site instead of the office).
+    bill_to = Column(String(1000), nullable=True)
+    ship_to = Column(String(1000), nullable=True)
+ 
+    shipping_method = Column(String(100), nullable=True)
+    shipping_terms = Column(String(100), nullable=True)
+    ship_via = Column(String(100), nullable=True)
+    payment_terms = Column(String(100), nullable=True)
+    delivery_date = Column(String(50), nullable=True)
+ 
+    remarks = Column(String(2000), nullable=True)
+ 
+    # Money. Recomputed server-side on create - the client never decides totals.
+    subtotal = Column(Float, nullable=False, default=0.0)
+    discount = Column(Float, nullable=False, default=0.0)
+    subtotal_less_discount = Column(Float, nullable=False, default=0.0)
+    tax_rate = Column(Float, nullable=False, default=0.0)  # percent, e.g. 7.214
+    total_tax = Column(Float, nullable=False, default=0.0)
+    shipping_handling = Column(Float, nullable=False, default=0.0)
+    other = Column(Float, nullable=False, default=0.0)
+    total = Column(Float, nullable=False, default=0.0)
+ 
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+ 
+    department = relationship("Department")
+    supplier = relationship("Supplier")
+    lines = relationship(
+        "PurchaseOrderLine",
+        back_populates="purchase_order",
+        cascade="all, delete-orphan",
+        order_by="PurchaseOrderLine.position",
+    )
+ 
+ 
+class PurchaseOrderLine(Base):
+    """One row of the PO item table. Item text is snapshot too, so renaming
+    or deleting a product later never rewrites an already-issued PO."""
+    __tablename__ = "purchase_order_lines"
+ 
+    id = Column(Integer, primary_key=True, index=True)
+    purchase_order_id = Column(
+        Integer, ForeignKey("purchase_orders.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    position = Column(Integer, nullable=False, default=0)
+ 
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
+    supplier_product_id = Column(Integer, ForeignKey("supplier_products.id", ondelete="SET NULL"), nullable=True)
+ 
+    item_no = Column(String(100), nullable=True)
+    description = Column(String(500), nullable=False)
+    qty = Column(Float, nullable=False, default=1.0)
+    unit_price = Column(Float, nullable=False, default=0.0)
+    line_total = Column(Float, nullable=False, default=0.0)
+ 
+    purchase_order = relationship("PurchaseOrder", back_populates="lines")
+ 

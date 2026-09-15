@@ -1,0 +1,213 @@
+import { useEffect, useMemo, useState } from 'react'
+import { FileText, PlusCircle, Download, Trash2, Search } from 'lucide-react'
+import {
+  getDepartments,
+  getPurchaseOrders,
+  getPurchaseOrder,
+  deletePurchaseOrder,
+} from '../api/endpoints'
+import { formatRs } from '../utils/currency'
+import printPurchaseOrder from '../utils/printPurchaseOrder'
+import CreatePOModal from './CreatePOModal'
+import ConfirmDialog from './ConfirmDialog'
+
+/**
+ * PO tab. Purchase orders are filed under the department they were issued
+ * for, so picking a department shows only that department's POs. Each saved
+ * PO reprints from its stored snapshot, so downloading it again always
+ * gives the same PDF.
+ */
+export default function PurchaseOrderTab() {
+  const [departments, setDepartments] = useState([])
+  const [deptId, setDeptId] = useState(null) // null = every department
+  const [orders, setOrders] = useState([])
+  const [query, setQuery] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+
+  useEffect(() => {
+    getDepartments()
+      .then(({ data }) => setDepartments(data))
+      .catch(() => setErr('Could not load departments.'))
+  }, [])
+
+  const loadOrders = () => {
+    setLoading(true)
+    getPurchaseOrders(deptId)
+      .then(({ data }) => {
+        setOrders(data)
+        setErr(null)
+      })
+      .catch(() => setErr('Could not load purchase orders.'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(loadOrders, [deptId])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return orders
+    return orders.filter(
+      (o) =>
+        o.po_number.toLowerCase().includes(q) ||
+        (o.supplier_name || '').toLowerCase().includes(q) ||
+        o.department_name.toLowerCase().includes(q)
+    )
+  }, [orders, query])
+
+  const handleDownload = async (poId) => {
+    // Open the window inside the click handler so iOS Safari keeps it.
+    const win = window.open('', '_blank')
+    try {
+      const { data } = await getPurchaseOrder(poId)
+      printPurchaseOrder(data, win)
+    } catch {
+      win?.close()
+      setErr('Could not open that purchase order.')
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return
+    try {
+      await deletePurchaseOrder(confirmDelete.id)
+      setConfirmDelete(null)
+      loadOrders()
+    } catch {
+      setErr('Could not delete that purchase order.')
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+          <FileText size={18} className="text-brand-600" />
+          Purchase Orders
+        </h2>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 active:scale-[0.98]"
+        >
+          <PlusCircle size={16} />
+          Create purchase order
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        <DeptChip active={deptId === null} onClick={() => setDeptId(null)}>
+          All departments
+        </DeptChip>
+        {departments.map((d) => (
+          <DeptChip key={d.id} active={deptId === d.id} onClick={() => setDeptId(d.id)}>
+            {d.name}
+          </DeptChip>
+        ))}
+      </div>
+
+      <div className="relative">
+        <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by PO number or vendor"
+          className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+        />
+      </div>
+
+      {err && <p className="text-sm text-red-600">{err}</p>}
+      {loading && <p className="text-sm text-gray-400">Loading purchase orders…</p>}
+
+      {!loading && filtered.length === 0 && (
+        <div className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
+          <p className="text-sm text-gray-500">
+            No purchase orders here yet. Create one and it gets filed under its department.
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {filtered.map((po) => (
+          <div
+            key={po.id}
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3"
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-gray-900">{po.po_number}</span>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                  {po.department_name}
+                </span>
+              </div>
+              <p className="mt-0.5 truncate text-xs text-gray-500">
+                {new Date(po.po_date).toLocaleDateString()} · {po.supplier_name || 'No vendor'} ·{' '}
+                {po.line_count} item{po.line_count === 1 ? '' : 's'}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-900">{formatRs(po.total)}</span>
+              <button
+                onClick={() => handleDownload(po.id)}
+                title="Download PDF"
+                className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <Download size={14} />
+                PDF
+              </button>
+              <button
+                onClick={() => setConfirmDelete(po)}
+                title="Delete purchase order"
+                className="rounded-lg border border-gray-300 p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {showCreate && (
+        <CreatePOModal
+          departments={departments}
+          defaultDepartmentId={deptId}
+          onClose={() => setShowCreate(false)}
+          onCreated={(po) => {
+            setShowCreate(false)
+            setDeptId(po.department_id)
+            loadOrders()
+            printPurchaseOrder(po)
+          }}
+        />
+      )}
+
+      {confirmDelete && (
+        <ConfirmDialog
+          open
+          title="Delete purchase order"
+          message={`Delete ${confirmDelete.po_number}? This removes it from ${confirmDelete.department_name}.`}
+          confirmLabel="Delete"
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={handleDelete}
+        />
+      )}
+    </div>
+  )
+}
+
+function DeptChip({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+        active
+          ? 'border-brand-600 bg-brand-50 text-brand-700'
+          : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}

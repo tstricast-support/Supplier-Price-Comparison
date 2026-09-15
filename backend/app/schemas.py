@@ -411,3 +411,145 @@ class GlobalSearchResponse(BaseModel):
     categories: List[SearchCategoryOut]
     vendors: List[SearchVendorOut]
     items: List[SearchItemOut]
+
+# ---------- Purchase Orders ----------
+ 
+class DepartmentPOProfileOut(BaseModel):
+    """Letterhead for one department - drives the logo/company block on the PO."""
+    department_id: int
+    department_name: str
+    po_prefix: str
+    company_name: str
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    contact_person: Optional[str] = None
+    logo_text: Optional[str] = None
+    logo_color: Optional[str] = None
+    logo_url: Optional[str] = None
+ 
+ 
+class POItemVendorOut(BaseModel):
+    supplier_product_id: int
+    supplier_id: int
+    supplier_name: str
+    pricing_mode: str
+    unit_price: float
+    total_price: float
+    total_length_or_quantity: float
+    is_cheapest: bool = False
+ 
+ 
+class POItemOptionOut(BaseModel):
+    """One pickable line-item in the Create PO form, scoped to a department."""
+    product_id: int
+    product_name: str
+    variant_code_or_size: Optional[str] = None
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
+    parent_name: Optional[str] = None  # set when this row is a subitem
+    vendors: List[POItemVendorOut] = []
+ 
+ 
+class PurchaseOrderLineCreate(BaseModel):
+    product_id: Optional[int] = None
+    supplier_product_id: Optional[int] = None
+    item_no: Optional[str] = None
+    description: str
+    qty: float = Field(..., gt=0)
+    unit_price: float = Field(..., ge=0)
+ 
+ 
+class PurchaseOrderCreate(BaseModel):
+    department_id: int
+    supplier_id: Optional[int] = None
+    vendor_name: Optional[str] = None
+    vendor_address: Optional[str] = None
+    customer_no: Optional[str] = None
+    bill_to: Optional[str] = None
+    ship_to: Optional[str] = None
+    shipping_method: Optional[str] = None
+    shipping_terms: Optional[str] = None
+    ship_via: Optional[str] = None
+    payment_terms: Optional[str] = None
+    delivery_date: Optional[str] = None
+    remarks: Optional[str] = None
+    discount: float = 0.0
+    tax_rate: float = 0.0
+    shipping_handling: float = 0.0
+    other: float = 0.0
+    lines: List[PurchaseOrderLineCreate] = []
+ 
+ 
+class PurchaseOrderLineOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    position: int
+    product_id: Optional[int] = None
+    supplier_product_id: Optional[int] = None
+    item_no: Optional[str] = None
+    description: str
+    qty: float
+    unit_price: float
+    line_total: float
+ 
+ 
+class PurchaseOrderOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    po_number: str
+    department_id: int
+    po_date: datetime
+    customer_no: Optional[str] = None
+ 
+    company_name: str
+    company_address_line1: Optional[str] = None
+    company_address_line2: Optional[str] = None
+    company_phone: Optional[str] = None
+    company_email: Optional[str] = None
+    company_website: Optional[str] = None
+    company_contact: Optional[str] = None
+    logo_text: Optional[str] = None
+    logo_color: Optional[str] = None
+    logo_url: Optional[str] = None
+ 
+    supplier_id: Optional[int] = None
+    supplier_name: Optional[str] = None
+    vendor_name: Optional[str] = None
+    vendor_address: Optional[str] = None
+    department_name: Optional[str] = None
+    bill_to: Optional[str] = None
+    ship_to: Optional[str] = None
+ 
+    shipping_method: Optional[str] = None
+    shipping_terms: Optional[str] = None
+    ship_via: Optional[str] = None
+    payment_terms: Optional[str] = None
+    delivery_date: Optional[str] = None
+    remarks: Optional[str] = None
+ 
+    subtotal: float
+    discount: float
+    subtotal_less_discount: float
+    tax_rate: float
+    total_tax: float
+    shipping_handling: float
+    other: float
+    total: float
+ 
+    lines: List[PurchaseOrderLineOut] = []
+ 
+ 
+class PurchaseOrderSummaryOut(BaseModel):
+    """Row in the PO list under a department."""
+    id: int
+    po_number: str
+    po_date: datetime
+    department_id: int
+    department_name: str
+    supplier_name: Optional[str] = None
+    line_count: int
+    total: float
+ 
