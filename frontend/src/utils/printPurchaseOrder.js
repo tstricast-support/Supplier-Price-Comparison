@@ -246,7 +246,7 @@ function buildBody(po) {
         </div>
       </div>
 
-      <div class="payto">Please make payment payable to ${esc(po.company_name)}.</div>
+      <div class="payto">Please reference PO ${esc(po.po_number)} on your invoice and delivery note.</div>
       <div class="thanks">THANK YOU</div>
 
       <div class="foot">
