@@ -116,8 +116,10 @@ export const globalSearch = (q) => api.get('/api/search', { params: { q } })
 export const getDepartmentPOProfile = (departmentId) =>
   api.get(`/api/departments/${departmentId}/po-profile`)
  
-export const getPOItems = (departmentId) =>
-  api.get(`/api/departments/${departmentId}/po-items`)
+export const getPOItems = (departmentId, supplierId) =>
+  api.get(`/api/departments/${departmentId}/po-items`, {
+    params: { supplier_id: supplierId || undefined },
+  })
  
 export const getPurchaseOrders = (departmentId, search) =>
   api.get('/api/purchase-orders', {

@@ -56,47 +56,50 @@ export default function CreatePOModal({ departments, defaultDepartmentId, onClos
     getSuppliers().then(({ data }) => setSuppliers(data)).catch(() => {})
   }, [])
 
-  // Department change -> new letterhead, new item list, drop any lines that
-  // belonged to the old department.
-  useEffect(() => {
-    if (!departmentId) {
-      setProfile(null)
-      setItems([])
-      setLines([])
-      return
-    }
-    getDepartmentPOProfile(departmentId)
-      .then(({ data }) => {
-        setProfile(data)
-        // Bill To / Ship To describe US, the buyer - default both to this
-        // department's own letterhead so the vendor knows where to invoice
-        // and deliver. Only fill them if empty, so switching departments
-        // twice doesn't clobber something the user already edited.
-        const ourAddress = [
-          data.company_name,
-          data.address_line1,
-          data.address_line2,
-          data.phone,
-          data.email,
-        ]
-          .filter(Boolean)
-          .join('\n')
-        setForm((f) => ({
-          ...f,
-          bill_to: f.bill_to || ourAddress,
-          ship_to: f.ship_to || ourAddress,
-        }))
-      })
-      .catch(() => setErr('Could not load the department letterhead.'))
+// Department change -> new letterhead, drop any lines that belonged to
+// the old department.
+useEffect(() => {
+  if (!departmentId) {
+    setProfile(null)
+    setForm((f) => ({ ...f, bill_to: f.bill_to, ship_to: f.ship_to })) // no-op, keep as is
+    return
+  }
+  getDepartmentPOProfile(departmentId)
+    .then(({ data }) => {
+      setProfile(data)
+      const ourAddress = [
+        data.company_name,
+        data.address_line1,
+        data.address_line2,
+        data.phone,
+        data.email,
+      ]
+        .filter(Boolean)
+        .join('\n')
+      setForm((f) => ({
+        ...f,
+        bill_to: f.bill_to || ourAddress,
+        ship_to: f.ship_to || ourAddress,
+      }))
+    })
+    .catch(() => setErr('Could not load the department letterhead.'))
+}, [departmentId])
 
-    getPOItems(departmentId)
-      .then(({ data }) => setItems(data))
-      .catch(() => setErr('Could not load items for this department.'))
-
+// Department OR vendor change -> re-filter the item picker, and clear any
+// lines that no longer make sense (they belonged to the old department, or
+// the newly-selected vendor doesn't carry them).
+useEffect(() => {
+  if (!departmentId) {
+    setItems([])
     setLines([])
-  }, [departmentId])
+    return
+  }
+  getPOItems(departmentId, supplierId || null)
+    .then(({ data }) => setItems(data))
+    .catch(() => setErr('Could not load items for this department.'))
 
-
+  setLines([])
+}, [departmentId, supplierId])
 
   const itemOptions = useMemo(
     () =>
@@ -304,7 +307,11 @@ export default function CreatePOModal({ departments, defaultDepartmentId, onClos
                 value={pickItemId}
                 onChange={(id) => id && addLine(id)}
                 placeholder={
-                  departmentId ? 'Search items in this department' : 'Pick a department first'
+                  !departmentId
+                    ? 'Pick a department first'
+                    : supplierId
+                    ? 'Search items priced by this vendor'
+                    : 'Search items in this department'
                 }
               />
             </div>

@@ -50,12 +50,21 @@ def list_po_profiles(db: Session = Depends(get_db)):
 # ---------- Items pickable on a PO, scoped to one department ----------
 
 @router.get("/departments/{department_id}/po-items", response_model=list[schemas.POItemOptionOut])
-def get_po_items(department_id: int, db: Session = Depends(get_db)):
+def get_po_items(
+    department_id: int,
+    supplier_id: Optional[int] = Query(
+        None, description="If given, only return items that have a price from this vendor"
+    ),
+    db: Session = Depends(get_db),
+):
     """
     Flat, searchable list of everything in this department that can go on a
-    PO - top-level items AND subitems (subitems carry their parent's name so
-    the picker can show "Parent / Subitem"). Each row carries its vendor
-    prices so picking an item can pre-fill the unit price.
+    PO - top-level items AND subitems.
+
+    If `supplier_id` is given, the list is narrowed to items that actually
+    have a price from that vendor, and each item's `vendors` list only
+    contains that vendor's offer (so picking an item always pre-fills the
+    price for the vendor chosen on the form).
     """
     department = db.query(models.Department).filter(models.Department.id == department_id).first()
     if not department:
@@ -72,19 +81,26 @@ def get_po_items(department_id: int, db: Session = Depends(get_db)):
         return []
 
     product_ids = [p.id for p in products]
-    sp_list = (
+
+    sp_query = (
         db.query(models.SupplierProduct)
         .options(joinedload(models.SupplierProduct.supplier))
         .filter(models.SupplierProduct.product_id.in_(product_ids))
-        .all()
     )
+    if supplier_id is not None:
+        sp_query = sp_query.filter(models.SupplierProduct.supplier_id == supplier_id)
+    sp_list = sp_query.all()
+
     sp_by_product: dict[int, list[models.SupplierProduct]] = {}
     for sp in sp_list:
         sp_by_product.setdefault(sp.product_id, []).append(sp)
 
     options = []
     for p in products:
-        offers = sorted(sp_by_product.get(p.id, []), key=lambda sp: sp.unit_price)
+        offers = sp_by_product.get(p.id, [])
+        if supplier_id is not None and not offers:
+            continue  # this item has no price from the selected vendor
+        offers = sorted(offers, key=lambda sp: sp.unit_price)
         options.append(
             schemas.POItemOptionOut(
                 product_id=p.id,
