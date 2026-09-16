@@ -246,6 +246,92 @@ def create_purchase_order(payload: schemas.PurchaseOrderCreate, db: Session = De
     db.refresh(po)
     return _to_out(po)
 
+@router.put("/purchase-orders/{po_id}", response_model=schemas.PurchaseOrderOut)
+def update_purchase_order(po_id: int, payload: schemas.PurchaseOrderCreate, db: Session = Depends(get_db)):
+    """
+    Edits an existing PO in place, same payload shape as create. The
+    po_number, po_date and department letterhead are snapshot at issue time
+    and never change here - only the department a PO already belongs to can
+    be edited, not moved to a different one. Lines are replaced wholesale;
+    qty/price/description can all change and lines have no stable identity
+    worth diffing against.
+    """
+    po = (
+        db.query(models.PurchaseOrder)
+        .options(joinedload(models.PurchaseOrder.lines))
+        .filter(models.PurchaseOrder.id == po_id)
+        .first()
+    )
+    if not po:
+        raise HTTPException(status_code=404, detail="Purchase order not found")
+
+    if payload.department_id != po.department_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Changing the department of an existing purchase order isn't supported.",
+        )
+
+    if not payload.lines:
+        raise HTTPException(status_code=400, detail="Add at least one item to the purchase order.")
+
+    supplier = None
+    if payload.supplier_id:
+        supplier = db.query(models.Supplier).filter(models.Supplier.id == payload.supplier_id).first()
+        if not supplier:
+            raise HTTPException(status_code=404, detail="Vendor not found")
+
+    subtotal = _round(sum(l.qty * l.unit_price for l in payload.lines))
+    discount = _round(payload.discount)
+    less_discount = _round(subtotal - discount)
+    total_tax = _round(less_discount * (payload.tax_rate or 0.0) / 100.0)
+    shipping = _round(payload.shipping_handling)
+    other = _round(payload.other)
+    total = _round(less_discount + total_tax + shipping + other)
+
+    po.customer_no = payload.customer_no
+    po.supplier_id = supplier.id if supplier else None
+    po.vendor_name = payload.vendor_name or (supplier.name if supplier else None)
+    po.vendor_address = payload.vendor_address
+    po.bill_to = payload.bill_to
+    po.ship_to = payload.ship_to
+    po.shipping_method = payload.shipping_method
+    po.shipping_terms = payload.shipping_terms
+    po.ship_via = payload.ship_via
+    po.payment_terms = payload.payment_terms
+    po.delivery_date = payload.delivery_date
+    po.remarks = payload.remarks
+    po.subtotal = subtotal
+    po.discount = discount
+    po.subtotal_less_discount = less_discount
+    po.tax_rate = payload.tax_rate or 0.0
+    po.total_tax = total_tax
+    po.shipping_handling = shipping
+    po.other = other
+    po.total = total
+
+    # Replace lines wholesale - cascade="all, delete-orphan" on the
+    # relationship handles deleting the old rows once we flush.
+    po.lines = []
+    db.flush()
+    for idx, line in enumerate(payload.lines):
+        db.add(
+            models.PurchaseOrderLine(
+                purchase_order_id=po.id,
+                position=idx,
+                product_id=line.product_id,
+                supplier_product_id=line.supplier_product_id,
+                item_no=line.item_no,
+                description=line.description.strip(),
+                qty=line.qty,
+                unit_price=line.unit_price,
+                line_total=_round(line.qty * line.unit_price),
+            )
+        )
+
+    db.commit()
+    db.refresh(po)
+    return _to_out(po)
+
 
 @router.get("/purchase-orders", response_model=list[schemas.PurchaseOrderSummaryOut])
 def list_purchase_orders(

@@ -16,6 +16,8 @@ import ConfirmDialog from './ConfirmDialog'
 import RowActionsMenu from './RowActionsMenu'
 import EditVendorModal from './EditVendorModal'
 import EditItemModal from './EditItemModal'
+import RenameModal from './RenameModal'
+
 
 function Notice({ notice }) {
   if (!notice) return null

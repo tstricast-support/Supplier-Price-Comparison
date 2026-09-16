@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { FileText, PlusCircle, Download, Trash2, Search } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { FileText, PlusCircle, Download, Trash2, Search, Pencil, MoreVertical } from 'lucide-react'
 import {
   getDepartments,
   getPurchaseOrders,
@@ -25,7 +25,9 @@ export default function PurchaseOrderTab() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [editingPO, setEditingPO] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [openMenuId, setOpenMenuId] = useState(null)
 
   useEffect(() => {
     getDepartments()
@@ -66,6 +68,16 @@ export default function PurchaseOrderTab() {
     } catch {
       win?.close()
       setErr('Could not open that purchase order.')
+    }
+  }
+
+  const handleEdit = async (poId) => {
+    setOpenMenuId(null)
+    try {
+      const { data } = await getPurchaseOrder(poId)
+      setEditingPO(data)
+    } catch {
+      setErr('Could not open that purchase order for editing.')
     }
   }
 
@@ -157,25 +169,33 @@ export default function PurchaseOrderTab() {
                 <Download size={14} />
                 PDF
               </button>
-              <button
-                onClick={() => setConfirmDelete(po)}
-                title="Delete purchase order"
-                className="rounded-lg border border-gray-300 p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"
-              >
-                <Trash2 size={14} />
-              </button>
+              <PORowMenu
+                open={openMenuId === po.id}
+                onToggle={() => setOpenMenuId((cur) => (cur === po.id ? null : po.id))}
+                onClose={() => setOpenMenuId(null)}
+                onEdit={() => handleEdit(po.id)}
+                onDelete={() => {
+                  setOpenMenuId(null)
+                  setConfirmDelete(po)
+                }}
+              />
             </div>
           </div>
         ))}
       </div>
 
-      {showCreate && (
+      {(showCreate || editingPO) && (
         <CreatePOModal
           departments={departments}
           defaultDepartmentId={deptId}
-          onClose={() => setShowCreate(false)}
+          editingPO={editingPO}
+          onClose={() => {
+            setShowCreate(false)
+            setEditingPO(null)
+          }}
           onCreated={(po) => {
             setShowCreate(false)
+            setEditingPO(null)
             setDeptId(po.department_id)
             loadOrders()
             printPurchaseOrder(po)
@@ -192,6 +212,66 @@ export default function PurchaseOrderTab() {
           onCancel={() => setConfirmDelete(null)}
           onConfirm={handleDelete}
         />
+      )}
+    </div>
+  )
+}
+
+/**
+ * Overflow menu for a PO row (Edit / Delete), triggered by a three-dot
+ * button. Keeping these two actions behind a menu - instead of bare icon
+ * buttons next to PDF - means a stray tap can't delete or edit a PO by
+ * accident; the person has to open the menu first, which is a deliberate
+ * action, then pick from it.
+ */
+function PORowMenu({ open, onToggle, onClose, onEdit, onDelete }) {
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handleClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onClose()
+    }
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [open, onClose])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={onToggle}
+        title="More actions"
+        className={`rounded-lg border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50 ${
+          open ? 'bg-gray-50' : ''
+        }`}
+      >
+        <MoreVertical size={14} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-10 mt-1 w-36 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+          <button
+            onClick={onEdit}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <Pencil size={13} />
+            Edit
+          </button>
+          <button
+            onClick={onDelete}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50"
+          >
+            <Trash2 size={13} />
+            Delete
+          </button>
+        </div>
       )}
     </div>
   )

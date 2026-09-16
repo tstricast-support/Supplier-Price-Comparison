@@ -5,50 +5,86 @@ import {
   getPOItems,
   getSuppliers,
   createPurchaseOrder,
+  updatePurchaseOrder,
 } from '../api/endpoints'
 import SearchableSelect from './SearchableSelect'
 import { formatRs } from '../utils/currency'
 
 /**
- * Create a purchase order.
+ * Create OR edit a purchase order.
  *
  * The department is picked first because it drives everything else: the
  * letterhead (logo, company name, address, phone) swaps to that
  * department's profile, and the item picker is filtered to items that
- * actually live in that department.
+ * actually live in that department. In edit mode the department is locked
+ * (the backend rejects changing it on an existing PO), so the picker is
+ * replaced with a read-only display.
  */
-export default function CreatePOModal({ departments, defaultDepartmentId, onClose, onCreated }) {
+export default function CreatePOModal({ departments, defaultDepartmentId, editingPO, onClose, onCreated }) {
   const [departmentId, setDepartmentId] = useState(
-    defaultDepartmentId ? String(defaultDepartmentId) : ''
+    editingPO ? String(editingPO.department_id) : defaultDepartmentId ? String(defaultDepartmentId) : ''
   )
   const [profile, setProfile] = useState(null)
   const [items, setItems] = useState([])
   const [suppliers, setSuppliers] = useState([])
-  const [supplierId, setSupplierId] = useState('')
+  const [supplierId, setSupplierId] = useState(
+    editingPO?.supplier_id ? String(editingPO.supplier_id) : ''
+  )
 
-  const [lines, setLines] = useState([])
+  const [lines, setLines] = useState(() =>
+    editingPO
+      ? editingPO.lines.map((l) => ({
+          key: `line-${l.id}`,
+          product_id: l.product_id,
+          supplier_product_id: l.supplier_product_id,
+          item_no: l.item_no || '',
+          description: l.description,
+          qty: String(l.qty),
+          unit_price: String(l.unit_price),
+        }))
+      : []
+  )
   const [pickItemId, setPickItemId] = useState('')
 
-  const [form, setForm] = useState({
-    customer_no: '',
-    vendor_address: '',
-    bill_to: '',
-    ship_to: '',
-    shipping_method: '',
-    shipping_terms: '',
-    ship_via: '',
-    payment_terms: '',
-    delivery_date: '',
-    remarks: '',
-    discount: '0',
-    tax_rate: '0',
-    shipping_handling: '0',
-    other: '0',
-  })
+  const [form, setForm] = useState(() =>
+    editingPO
+      ? {
+          customer_no: editingPO.customer_no || '',
+          vendor_address: editingPO.vendor_address || '',
+          bill_to: editingPO.bill_to || '',
+          ship_to: editingPO.ship_to || '',
+          shipping_method: editingPO.shipping_method || '',
+          shipping_terms: editingPO.shipping_terms || '',
+          ship_via: editingPO.ship_via || '',
+          payment_terms: editingPO.payment_terms || '',
+          delivery_date: editingPO.delivery_date || '',
+          remarks: editingPO.remarks || '',
+          discount: String(editingPO.discount ?? 0),
+          tax_rate: String(editingPO.tax_rate ?? 0),
+          shipping_handling: String(editingPO.shipping_handling ?? 0),
+          other: String(editingPO.other ?? 0),
+        }
+      : {
+          customer_no: '',
+          vendor_address: '',
+          bill_to: '',
+          ship_to: '',
+          shipping_method: '',
+          shipping_terms: '',
+          ship_via: '',
+          payment_terms: '',
+          delivery_date: '',
+          remarks: '',
+          discount: '0',
+          tax_rate: '0',
+          shipping_handling: '0',
+          other: '0',
+        }
+  )
 
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState(null)
-  const [vendorAddressTouched, setVendorAddressTouched] = useState(false)
+  const [vendorAddressTouched, setVendorAddressTouched] = useState(!!editingPO)
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
   const num = (v) => (v === '' || isNaN(Number(v)) ? 0 : Number(v))
@@ -57,9 +93,10 @@ export default function CreatePOModal({ departments, defaultDepartmentId, onClos
     getSuppliers().then(({ data }) => setSuppliers(data)).catch(() => {})
   }, [])
 
-// Vendor change -> prefill their address block from the vendor's saved
-// contact details, same "prefill unless the user already edited it"
-// pattern used for bill_to/ship_to.
+  // Vendor change -> prefill their address block from the vendor's saved
+  // contact details, same "prefill unless the user already edited it"
+  // pattern used for bill_to/ship_to. Starts as "already touched" in edit
+  // mode so this never clobbers an already-saved PO's address.
   useEffect(() => {
     if (!supplierId || vendorAddressTouched) return
     const supplier = suppliers.find((s) => String(s.id) === String(supplierId))
@@ -70,50 +107,47 @@ export default function CreatePOModal({ departments, defaultDepartmentId, onClos
     if (vendorBlock) setForm((f) => ({ ...f, vendor_address: vendorBlock }))
   }, [supplierId, suppliers, vendorAddressTouched])
 
-// Department change -> new letterhead, drop any lines that belonged to
-// the old department.
-useEffect(() => {
-  if (!departmentId) {
-    setProfile(null)
-    setForm((f) => ({ ...f, bill_to: f.bill_to, ship_to: f.ship_to })) // no-op, keep as is
-    return
-  }
-  getDepartmentPOProfile(departmentId)
-    .then(({ data }) => {
-      setProfile(data)
-      const ourAddress = [
-        data.company_name,
-        data.address_line1,
-        data.address_line2,
-        data.phone,
-        data.email,
-      ]
-        .filter(Boolean)
-        .join('\n')
-      setForm((f) => ({
-        ...f,
-        bill_to: f.bill_to || ourAddress,
-        ship_to: f.ship_to || ourAddress,
-      }))
-    })
-    .catch(() => setErr('Could not load the department letterhead.'))
-}, [departmentId])
+  // Department change -> new letterhead.
+  useEffect(() => {
+    if (!departmentId) {
+      setProfile(null)
+      return
+    }
+    getDepartmentPOProfile(departmentId)
+      .then(({ data }) => {
+        setProfile(data)
+        const ourAddress = [
+          data.company_name,
+          data.address_line1,
+          data.address_line2,
+          data.phone,
+          data.email,
+        ]
+          .filter(Boolean)
+          .join('\n')
+        setForm((f) => ({
+          ...f,
+          bill_to: f.bill_to || ourAddress,
+          ship_to: f.ship_to || ourAddress,
+        }))
+      })
+      .catch(() => setErr('Could not load the department letterhead.'))
+  }, [departmentId])
 
-// Department OR vendor change -> re-filter the item picker, and clear any
-// lines that no longer make sense (they belonged to the old department, or
-// the newly-selected vendor doesn't carry them).
-useEffect(() => {
-  if (!departmentId) {
-    setItems([])
-    setLines([])
-    return
-  }
-  getPOItems(departmentId, supplierId || null)
-    .then(({ data }) => setItems(data))
-    .catch(() => setErr('Could not load items for this department.'))
-
-  setLines([])
-}, [departmentId, supplierId])
+  // Department OR vendor change -> re-filter the item picker.
+  // NOTE: does NOT clear `lines` here - that would wipe out edit mode's
+  // pre-filled lines the instant this effect runs on mount. Clearing only
+  // happens when the user actually changes the dropdown (see onChange
+  // handlers on the department/vendor pickers below).
+  useEffect(() => {
+    if (!departmentId) {
+      setItems([])
+      return
+    }
+    getPOItems(departmentId, supplierId || null)
+      .then(({ data }) => setItems(data))
+      .catch(() => setErr('Could not load items for this department.'))
+  }, [departmentId, supplierId])
 
   const itemOptions = useMemo(
     () =>
@@ -171,33 +205,36 @@ useEffect(() => {
 
     setSaving(true)
     setErr(null)
+    const payload = {
+      department_id: Number(departmentId),
+      supplier_id: supplierId ? Number(supplierId) : null,
+      vendor_address: form.vendor_address || null,
+      customer_no: form.customer_no || null,
+      bill_to: form.bill_to || null,
+      ship_to: form.ship_to || null,
+      shipping_method: form.shipping_method || null,
+      shipping_terms: form.shipping_terms || null,
+      ship_via: form.ship_via || null,
+      payment_terms: form.payment_terms || null,
+      delivery_date: form.delivery_date || null,
+      remarks: form.remarks || null,
+      discount: num(form.discount),
+      tax_rate: num(form.tax_rate),
+      shipping_handling: num(form.shipping_handling),
+      other: num(form.other),
+      lines: lines.map((l) => ({
+        product_id: l.product_id,
+        supplier_product_id: l.supplier_product_id,
+        item_no: l.item_no || null,
+        description: l.description,
+        qty: num(l.qty),
+        unit_price: num(l.unit_price),
+      })),
+    }
     try {
-      const { data } = await createPurchaseOrder({
-        department_id: Number(departmentId),
-        supplier_id: supplierId ? Number(supplierId) : null,
-        vendor_address: form.vendor_address || null,
-        customer_no: form.customer_no || null,
-        bill_to: form.bill_to || null,
-        ship_to: form.ship_to || null,
-        shipping_method: form.shipping_method || null,
-        shipping_terms: form.shipping_terms || null,
-        ship_via: form.ship_via || null,
-        payment_terms: form.payment_terms || null,
-        delivery_date: form.delivery_date || null,
-        remarks: form.remarks || null,
-        discount: num(form.discount),
-        tax_rate: num(form.tax_rate),
-        shipping_handling: num(form.shipping_handling),
-        other: num(form.other),
-        lines: lines.map((l) => ({
-          product_id: l.product_id,
-          supplier_product_id: l.supplier_product_id,
-          item_no: l.item_no || null,
-          description: l.description,
-          qty: num(l.qty),
-          unit_price: num(l.unit_price),
-        })),
-      })
+      const { data } = editingPO
+        ? await updatePurchaseOrder(editingPO.id, payload)
+        : await createPurchaseOrder(payload)
       onCreated(data)
     } catch (error) {
       setErr(error.response?.data?.detail || 'Could not save the purchase order.')
@@ -212,7 +249,9 @@ useEffect(() => {
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
           <div className="flex items-center gap-2">
             <FileText size={18} className="text-brand-600" />
-            <h2 className="text-sm font-semibold text-gray-900">New purchase order</h2>
+            <h2 className="text-sm font-semibold text-gray-900">
+              {editingPO ? `Edit ${editingPO.po_number}` : 'New purchase order'}
+            </h2>
           </div>
           <button onClick={onClose} className="rounded-full p-1 hover:bg-gray-100">
             <X size={18} />
@@ -222,12 +261,21 @@ useEffect(() => {
         <form onSubmit={handleSave} className="space-y-5 px-5 py-5">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Department</label>
-            <SearchableSelect
-              options={departments.map((d) => ({ id: d.id, label: d.name }))}
-              value={departmentId}
-              onChange={setDepartmentId}
-              placeholder="Pick a department"
-            />
+            {editingPO ? (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
+                {departments.find((d) => String(d.id) === departmentId)?.name || '—'}
+              </div>
+            ) : (
+              <SearchableSelect
+                options={departments.map((d) => ({ id: d.id, label: d.name }))}
+                value={departmentId}
+                onChange={(id) => {
+                  setDepartmentId(id)
+                  setLines([])
+                }}
+                placeholder="Pick a department"
+              />
+            )}
           </div>
 
           {profile && (
@@ -266,7 +314,10 @@ useEffect(() => {
                 <SearchableSelect
                   options={suppliers.map((s) => ({ id: s.id, label: s.name }))}
                   value={supplierId}
-                  onChange={setSupplierId}
+                  onChange={(id) => {
+                    setSupplierId(id)
+                    setLines([])
+                  }}
                   placeholder="Search vendors"
                 />
               </div>
@@ -445,7 +496,7 @@ useEffect(() => {
               className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
             >
               <Plus size={16} />
-              {saving ? 'Saving…' : 'Save & download PDF'}
+              {saving ? 'Saving…' : editingPO ? 'Save changes' : 'Save & download PDF'}
             </button>
           </div>
         </form>

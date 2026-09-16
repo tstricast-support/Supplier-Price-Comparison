@@ -133,6 +133,9 @@ export const getPurchaseOrder = (poId) => api.get(`/api/purchase-orders/${poId}`
  
 export const createPurchaseOrder = (payload) =>
   api.post('/api/purchase-orders', payload)
+
+export const updatePurchaseOrder = (poId, payload) =>
+  api.put(`/api/purchase-orders/${poId}`, payload)
  
 export const deletePurchaseOrder = (poId) =>
   api.delete(`/api/purchase-orders/${poId}`)
