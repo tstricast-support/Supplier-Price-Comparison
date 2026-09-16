@@ -14,7 +14,7 @@ export default function QuickCreateVendorModal({ initialName = '', onClose, onCr
     setSaving(true)
     setErr(null)
     try {
-      const { data } = await createSupplier(name.trim())
+      const { data } = await createSupplier({ name: name.trim() })
       onCreated(data)
     } catch (error) {
       setErr(error.response?.data?.detail || 'Failed to create vendor.')

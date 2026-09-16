@@ -48,6 +48,7 @@ export default function CreatePOModal({ departments, defaultDepartmentId, onClos
 
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState(null)
+  const [vendorAddressTouched, setVendorAddressTouched] = useState(false)
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
   const num = (v) => (v === '' || isNaN(Number(v)) ? 0 : Number(v))
@@ -55,6 +56,19 @@ export default function CreatePOModal({ departments, defaultDepartmentId, onClos
   useEffect(() => {
     getSuppliers().then(({ data }) => setSuppliers(data)).catch(() => {})
   }, [])
+
+// Vendor change -> prefill their address block from the vendor's saved
+// contact details, same "prefill unless the user already edited it"
+// pattern used for bill_to/ship_to.
+  useEffect(() => {
+    if (!supplierId || vendorAddressTouched) return
+    const supplier = suppliers.find((s) => String(s.id) === String(supplierId))
+    if (!supplier) return
+    const vendorBlock = [supplier.contact_person, supplier.address, supplier.phone, supplier.email]
+      .filter(Boolean)
+      .join('\n')
+    if (vendorBlock) setForm((f) => ({ ...f, vendor_address: vendorBlock }))
+  }, [supplierId, suppliers, vendorAddressTouched])
 
 // Department change -> new letterhead, drop any lines that belonged to
 // the old department.
@@ -262,7 +276,10 @@ useEffect(() => {
               <TextArea
                 label="Vendor address"
                 value={form.vendor_address}
-                onChange={set('vendor_address')}
+                onChange={(e) => {
+                  setVendorAddressTouched(true)
+                  set('vendor_address')(e)
+                }}
               />
             </div>
           </div>

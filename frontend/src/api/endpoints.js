@@ -49,12 +49,12 @@ export const getSupplierCategoryItems = (supplierId, categoryId) =>
 export const getSupplierProducts = (supplierId) =>
   api.get(`/api/suppliers/${supplierId}/products`)
 
-export const createSupplier = (name) =>
-  api.post('/api/admin/suppliers', { name })
+export const createSupplier = (payload) =>
+  api.post('/api/admin/suppliers', payload)
 
+export const updateSupplier = (supplierId, payload) =>
+  api.put(`/api/admin/suppliers/${supplierId}`, payload)
 
-export const updateSupplier = (supplierId, name) =>
-  api.put(`/api/admin/suppliers/${supplierId}`, { name })
 
 export const deleteSupplier = (supplierId) =>
   api.delete(`/api/admin/suppliers/${supplierId}`)

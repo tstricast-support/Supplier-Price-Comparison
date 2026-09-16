@@ -75,14 +75,26 @@ class SupplierOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     name: str
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    contact_person: Optional[str] = None
 
 
 class SupplierCreate(BaseModel):
     name: str
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    contact_person: Optional[str] = None
+
 
 class SupplierUpdate(BaseModel):
     name: str
-
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    contact_person: Optional[str] = None
 
 
 

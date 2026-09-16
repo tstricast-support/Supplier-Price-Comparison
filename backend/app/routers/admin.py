@@ -37,8 +37,6 @@ def _resolve_dimensions(
 
 @router.post("/suppliers", response_model=schemas.SupplierOut)
 def create_supplier(payload: schemas.SupplierCreate, db: Session = Depends(get_db)):
-    """Create a new vendor. Used both from Manage and from the inline
-    'Create vendor' button on the searchable vendor picker."""
     existing = (
         db.query(models.Supplier)
         .filter(models.Supplier.name.ilike(payload.name.strip()))
@@ -46,7 +44,13 @@ def create_supplier(payload: schemas.SupplierCreate, db: Session = Depends(get_d
     )
     if existing:
         raise HTTPException(status_code=400, detail="Vendor already exists")
-    supplier = models.Supplier(name=payload.name.strip())
+    supplier = models.Supplier(
+        name=payload.name.strip(),
+        address=payload.address.strip() if payload.address else None,
+        phone=payload.phone.strip() if payload.phone else None,
+        email=payload.email.strip() if payload.email else None,
+        contact_person=payload.contact_person.strip() if payload.contact_person else None,
+    )
     db.add(supplier)
     db.commit()
     db.refresh(supplier)
@@ -462,6 +466,10 @@ def update_supplier(supplier_id: int, payload: schemas.SupplierUpdate, db: Sessi
         raise HTTPException(status_code=400, detail="Another vendor with this name already exists")
 
     supplier.name = payload.name.strip()
+    supplier.address = payload.address.strip() if payload.address else None
+    supplier.phone = payload.phone.strip() if payload.phone else None
+    supplier.email = payload.email.strip() if payload.email else None
+    supplier.contact_person = payload.contact_person.strip() if payload.contact_person else None
     db.commit()
     db.refresh(supplier)
     return supplier

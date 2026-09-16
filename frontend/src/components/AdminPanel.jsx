@@ -14,7 +14,7 @@ import {
 } from '../api/endpoints'
 import ConfirmDialog from './ConfirmDialog'
 import RowActionsMenu from './RowActionsMenu'
-import RenameModal from './RenameModal'
+import EditVendorModal from './EditVendorModal'
 import EditItemModal from './EditItemModal'
 
 function Notice({ notice }) {
@@ -105,7 +105,7 @@ function VendorManageCard({ suppliers, onChanged }) {
     setSaving(true)
     setNotice(null)
     try {
-      await createSupplier(name.trim())
+      await createSupplier({ name: name.trim() })
       setNotice({ type: 'success', message: `Vendor "${name.trim()}" added.` })
       setName('')
       onChanged()
@@ -132,9 +132,9 @@ function VendorManageCard({ suppliers, onChanged }) {
     }
   }
 
-  const handleRename = async (newName) => {
-    await updateSupplier(editing.id, newName)
-    setNotice({ type: 'success', message: `Vendor renamed to "${newName}".` })
+  const handleSaveVendor = async (payload) => {
+    await updateSupplier(editing.id, payload)
+    setNotice({ type: 'success', message: `Vendor "${payload.name}" updated.` })
     setEditing(null)
     onChanged()
   }
@@ -190,12 +190,11 @@ function VendorManageCard({ suppliers, onChanged }) {
       />
 
       {editing && (
-        <RenameModal
-          title="Rename Vendor"
-          initialName={editing.name}
+        <EditVendorModal
+          supplier={editing}
           onClose={() => setEditing(null)}
-          onSave={handleRename}
-        />
+          onSave={handleSaveVendor}
+          />
       )}
     </div>
   )
