@@ -118,6 +118,9 @@ def get_po_items(
                         unit_price=sp.unit_price,
                         total_price=sp.total_price,
                         total_length_or_quantity=sp.total_length_or_quantity,
+                        po_unit_price=(
+                            sp.total_price if sp.pricing_mode in ("sq_inch", "sq_feet") else sp.unit_price
+                        ),
                         is_cheapest=(idx == 0),
                     )
                     for idx, sp in enumerate(offers)

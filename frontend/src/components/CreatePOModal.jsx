@@ -148,7 +148,7 @@ useEffect(() => {
           it.variant_code_or_size ? ` - ${it.variant_code_or_size}` : '',
         ].join(''),
         qty: '1',
-        unit_price: offer ? String(offer.unit_price) : '0',
+        unit_price: offer ? String(offer.po_unit_price) : '0',
       },
     ])
     setPickItemId('')

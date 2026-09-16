@@ -452,6 +452,7 @@ class POItemVendorOut(BaseModel):
     total_price: float
     total_length_or_quantity: float
     is_cheapest: bool = False
+    po_unit_price: float
  
  
 class POItemOptionOut(BaseModel):
