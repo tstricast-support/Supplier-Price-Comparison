@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint
+    Column, Integer, String, Float,Boolean, ForeignKey, DateTime, UniqueConstraint
 )
 from sqlalchemy.orm import relationship, backref
 from app.database import Base
@@ -201,7 +201,9 @@ class PurchaseOrder(Base):
     delivery_date = Column(String(50), nullable=True)
  
     remarks = Column(String(2000), nullable=True)
- 
+
+    show_item_no = Column(Boolean, nullable=False, default=False)
+
     # Money. Recomputed server-side on create - the client never decides totals.
     subtotal = Column(Float, nullable=False, default=0.0)
     discount = Column(Float, nullable=False, default=0.0)

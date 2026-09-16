@@ -118,15 +118,22 @@ function buildBody(po) {
     ? `<img class="logo-img" src="${esc(po.logo_url)}" alt="${esc(po.logo_text || po.company_name)}" />`
     : `<div class="logo-text">${esc(po.logo_text || po.company_name)}</div>`
 
+  // The ITEM NO. field is never removed from the data model - it's only
+  // shown on the printed PO when the "Show Item No." checkbox was ticked
+  // on the form (po.show_item_no). Off by default.
+  const showItemNo = !!po.show_item_no
+  const itemNoCell = (value) => (showItemNo ? `<td>${esc(value || '')}</td>` : '')
+  const itemNoHeader = showItemNo ? `<th style="width:110px">ITEM NO.</th>` : ''
+
   const itemRows = lines
     .map(
       (l) => `
         <tr>
-          <td>${esc(l.item_no || '')}</td>
+          ${itemNoCell(l.item_no)}
           <td>${esc(l.description)}</td>
           <td class="c">${esc(l.qty)}</td>
-          <td class="r">Rs. ${money(l.unit_price)}</td>
-          <td class="r">Rs. ${money(l.line_total)}</td>
+          <td class="r">${money(l.unit_price)}</td>
+          <td class="r">${money(l.line_total)}</td>
         </tr>`
     )
     .join('')
@@ -135,7 +142,7 @@ function buildBody(po) {
     .map(
       () => `
         <tr>
-          <td>&nbsp;</td><td></td><td></td><td></td><td class="r">Rs. 0.00</td>
+          ${showItemNo ? '<td>&nbsp;</td>' : ''}<td></td><td></td><td></td><td class="r">0.00</td>
         </tr>`
     )
     .join('')
@@ -213,7 +220,7 @@ function buildBody(po) {
       <table class="grid items" style="margin-top:18px">
         <thead>
           <tr>
-            <th style="width:110px">ITEM NO.</th>
+            ${itemNoHeader}
             <th>DESCRIPTION</th>
             <th class="c" style="width:70px">QTY</th>
             <th class="r" style="width:110px">UNIT PRICE</th>

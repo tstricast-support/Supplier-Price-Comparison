@@ -8,7 +8,7 @@ import {
   updatePurchaseOrder,
 } from '../api/endpoints'
 import SearchableSelect from './SearchableSelect'
-import { formatRs } from '../utils/currency'
+import { formatRs, formatAmount } from '../utils/currency'
 
 /**
  * Create OR edit a purchase order.
@@ -45,6 +45,11 @@ export default function CreatePOModal({ departments, defaultDepartmentId, editin
       : []
   )
   const [pickItemId, setPickItemId] = useState('')
+
+  // Item No. column already exists on every line (kept as-is, never
+  // removed) but is hidden on the printed PO by default. Ticking this
+  // shows the ITEM NO. column on the final print/PDF.
+  const [showItemNo, setShowItemNo] = useState(editingPO?.show_item_no ?? false)
 
   const [form, setForm] = useState(() =>
     editingPO
@@ -222,6 +227,7 @@ export default function CreatePOModal({ departments, defaultDepartmentId, editin
       tax_rate: num(form.tax_rate),
       shipping_handling: num(form.shipping_handling),
       other: num(form.other),
+      show_item_no: showItemNo,
       lines: lines.map((l) => ({
         product_id: l.product_id,
         supplier_product_id: l.supplier_product_id,
@@ -439,7 +445,7 @@ export default function CreatePOModal({ departments, defaultDepartmentId, editin
                           />
                         </td>
                         <td className="px-3 py-2 text-right font-medium">
-                          {formatRs(num(l.qty) * num(l.unit_price))}
+                          {formatAmount(num(l.qty) * num(l.unit_price))}
                         </td>
                         <td className="px-2 py-2">
                           <button
@@ -456,17 +462,27 @@ export default function CreatePOModal({ departments, defaultDepartmentId, editin
                 </table>
               </div>
             )}
+
+            <label className="flex items-center gap-2 border-t border-gray-200 px-4 py-3 text-xs text-gray-600">
+              <input
+                type="checkbox"
+                checked={showItemNo}
+                onChange={(e) => setShowItemNo(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+              />
+              Show the &ldquo;Item No.&rdquo; column on the printed / PDF purchase order
+            </label>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <TextArea label="Remarks / instructions" value={form.remarks} onChange={set('remarks')} />
 
             <div className="space-y-2 rounded-xl border border-gray-200 p-4">
-              <TotalRow label="Subtotal" value={formatRs(subtotal)} />
+              <TotalRow label="Subtotal" value={formatAmount(subtotal)} />
               <MoneyInput label="Discount" value={form.discount} onChange={set('discount')} />
-              <TotalRow label="Subtotal less discount" value={formatRs(lessDiscount)} />
+              <TotalRow label="Subtotal less discount" value={formatAmount(lessDiscount)} />
               <MoneyInput label="Tax rate (%)" value={form.tax_rate} onChange={set('tax_rate')} />
-              <TotalRow label="Total tax" value={formatRs(totalTax)} />
+              <TotalRow label="Total tax" value={formatAmount(totalTax)} />
               <MoneyInput
                 label="Shipping / handling"
                 value={form.shipping_handling}

@@ -6,6 +6,17 @@ export function formatRs(value, decimals = 2) {
   })}`
 }
 
+// Same numeric formatting as formatRs but WITHOUT the "Rs." currency
+// prefix. Used everywhere a money amount is shown except the single
+// grand TOTAL field, which is the only place the currency label prints.
+export function formatAmount(value, decimals = 2) {
+  if (value === null || value === undefined || isNaN(value)) return '—'
+  return Number(value).toLocaleString('en-LK', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })
+}
+
 export function unitSuffix(pricingMode) {
   if (pricingMode === 'sq_inch') return 'sq in'
   if (pricingMode === 'sq_feet') return 'sq ft'

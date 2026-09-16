@@ -215,6 +215,7 @@ def create_purchase_order(payload: schemas.PurchaseOrderCreate, db: Session = De
         payment_terms=payload.payment_terms,
         delivery_date=payload.delivery_date,
         remarks=payload.remarks,
+        show_item_no=payload.show_item_no,
         subtotal=subtotal,
         discount=discount,
         subtotal_less_discount=less_discount,
@@ -300,6 +301,7 @@ def update_purchase_order(po_id: int, payload: schemas.PurchaseOrderCreate, db: 
     po.payment_terms = payload.payment_terms
     po.delivery_date = payload.delivery_date
     po.remarks = payload.remarks
+    po.show_item_no = payload.show_item_no
     po.subtotal = subtotal
     po.discount = discount
     po.subtotal_less_discount = less_discount

@@ -493,6 +493,7 @@ class PurchaseOrderCreate(BaseModel):
     tax_rate: float = 0.0
     shipping_handling: float = 0.0
     other: float = 0.0
+    show_item_no: bool = False
     lines: List[PurchaseOrderLineCreate] = []
  
  
@@ -542,6 +543,7 @@ class PurchaseOrderOut(BaseModel):
     payment_terms: Optional[str] = None
     delivery_date: Optional[str] = None
     remarks: Optional[str] = None
+    show_item_no: bool = False
  
     subtotal: float
     discount: float
