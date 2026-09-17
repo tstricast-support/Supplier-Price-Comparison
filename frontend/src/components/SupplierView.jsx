@@ -16,7 +16,7 @@ import { printVendorItemList } from '../utils/printVendorList'
  * category expands it inline to show its items, instead of navigating to
  * a separate items screen.
  */
-export default function SupplierView({ navRequest, onNavConsumed }) {
+export default function SupplierView({ navRequest, onNavConsumed, refreshKey }) {
   const [step, setStep] = useState('vendors') // 'vendors' | 'categories'
 
   const [suppliers, setSuppliers] = useState([])
@@ -47,6 +47,16 @@ export default function SupplierView({ navRequest, onNavConsumed }) {
     setLoadingCategories(true)
     getSupplierCategories(supplierId).then(({ data }) => setCategories(data)).finally(() => setLoadingCategories(false))
   }, [])
+
+  // An item (or price) may have been created elsewhere - e.g. the header's
+  // "+ New Product" button - while this vendor's category list is open.
+  // Without this, the page stays stale until the user leaves and comes
+  // back. Only refetches if a vendor is actually selected; harmless no-op
+  // on first mount since refreshKey hasn't changed yet.
+  useEffect(() => {
+    if (activeSupplier) loadCategories(activeSupplier.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   const handleSelectSupplier = (supplier) => {
     setActiveSupplier(supplier)
@@ -109,6 +119,7 @@ export default function SupplierView({ navRequest, onNavConsumed }) {
           supplier={activeSupplier}
           categories={categories}
           loading={loadingCategories}
+          refreshKey={refreshKey}
           onBack={handleBackToVendors}
           onPrintAll={handlePrintAll}
           printingAll={printingAll}

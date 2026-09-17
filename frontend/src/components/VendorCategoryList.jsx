@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { ChevronLeft, ChevronDown, ChevronRight, CornerDownRight, Tag, Printer, Pencil, History, Package, Layers } from 'lucide-react'
 import { getSupplierCategoryItems } from '../api/endpoints'
 import { formatRs, formatMeasurement, unitSuffix } from '../utils/currency'
@@ -18,6 +18,7 @@ export default function VendorCategoryList({
   supplier,
   categories,
   loading,
+  refreshKey,
   onBack,
   onPrintAll,
   printingAll,
@@ -66,6 +67,16 @@ export default function VendorCategoryList({
   const refreshCategory = (categoryId) => {
     fetchCategoryItems(categoryId)
   }
+
+  // Same "created elsewhere" case as SupplierView: an item's cached list
+  // here can go stale even after the category counts above refresh. Drop
+  // the cache so a reopened category re-fetches, and if one is already
+  // open, refresh it immediately instead of waiting for a re-open.
+  useEffect(() => {
+    setItemsByCategory({})
+    if (expandedCategoryId) fetchCategoryItems(expandedCategoryId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   return (
     <div>

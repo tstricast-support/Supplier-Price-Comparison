@@ -96,7 +96,7 @@ export default function App() {
           />
         )}
         {tab === 'supplier' && (
-          <SupplierView navRequest={vendorNav} onNavConsumed={() => setVendorNav(null)} />
+          <SupplierView refreshKey={refreshKey} navRequest={vendorNav} onNavConsumed={() => setVendorNav(null)} />
         )}
         {tab === 'manage' && <AdminPanel />}
         {tab === 'po' && <PurchaseOrderTab />}
