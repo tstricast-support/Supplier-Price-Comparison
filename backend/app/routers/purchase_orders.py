@@ -155,6 +155,17 @@ def _next_po_number(db: Session, department: models.Department) -> str:
         seq += 1
 
 
+def _validate_po_number(db: Session, po_number: str, exclude_id: Optional[int] = None) -> None:
+    """Raise if another PO already uses this number. po_number is globally
+    unique (see the UniqueConstraint on PurchaseOrder.po_number), not just
+    unique within a department."""
+    query = db.query(models.PurchaseOrder).filter(models.PurchaseOrder.po_number == po_number)
+    if exclude_id is not None:
+        query = query.filter(models.PurchaseOrder.id != exclude_id)
+    if query.first():
+        raise HTTPException(status_code=400, detail="Another purchase order already uses this number.")
+
+
 # ---------- Create / read / delete ----------
 
 def _to_out(po: models.PurchaseOrder) -> schemas.PurchaseOrderOut:
@@ -181,6 +192,12 @@ def create_purchase_order(payload: schemas.PurchaseOrderCreate, db: Session = De
 
     profile = profile_for(department)
 
+    if payload.po_number and payload.po_number.strip():
+        po_number = payload.po_number.strip()
+        _validate_po_number(db, po_number)
+    else:
+        po_number = _next_po_number(db, department)
+
     subtotal = _round(sum(l.qty * l.unit_price for l in payload.lines))
     discount = _round(payload.discount)
     less_discount = _round(subtotal - discount)
@@ -190,7 +207,7 @@ def create_purchase_order(payload: schemas.PurchaseOrderCreate, db: Session = De
     total = _round(less_discount + total_tax + shipping + other)
 
     po = models.PurchaseOrder(
-        po_number=_next_po_number(db, department),
+        po_number=po_number,
         department_id=department.id,
         po_date=datetime.now(timezone.utc),  # date filled automatically
         customer_no=payload.customer_no,
@@ -247,15 +264,17 @@ def create_purchase_order(payload: schemas.PurchaseOrderCreate, db: Session = De
     db.refresh(po)
     return _to_out(po)
 
+
 @router.put("/purchase-orders/{po_id}", response_model=schemas.PurchaseOrderOut)
 def update_purchase_order(po_id: int, payload: schemas.PurchaseOrderCreate, db: Session = Depends(get_db)):
     """
     Edits an existing PO in place, same payload shape as create. The
-    po_number, po_date and department letterhead are snapshot at issue time
-    and never change here - only the department a PO already belongs to can
-    be edited, not moved to a different one. Lines are replaced wholesale;
-    qty/price/description can all change and lines have no stable identity
-    worth diffing against.
+    po_date and department letterhead are snapshot at issue time and never
+    change here - only the department a PO already belongs to can be
+    edited, not moved to a different one. The po_number CAN be edited (see
+    _validate_po_number below), unlike po_date/letterhead. Lines are
+    replaced wholesale; qty/price/description can all change and lines have
+    no stable identity worth diffing against.
     """
     po = (
         db.query(models.PurchaseOrder)
@@ -274,6 +293,12 @@ def update_purchase_order(po_id: int, payload: schemas.PurchaseOrderCreate, db: 
 
     if not payload.lines:
         raise HTTPException(status_code=400, detail="Add at least one item to the purchase order.")
+
+    if payload.po_number and payload.po_number.strip():
+        new_po_number = payload.po_number.strip()
+        if new_po_number != po.po_number:
+            _validate_po_number(db, new_po_number, exclude_id=po.id)
+        po.po_number = new_po_number
 
     supplier = None
     if payload.supplier_id:

@@ -480,6 +480,7 @@ class PurchaseOrderCreate(BaseModel):
     supplier_id: Optional[int] = None
     vendor_name: Optional[str] = None
     vendor_address: Optional[str] = None
+    po_number: Optional[str] = None
     customer_no: Optional[str] = None
     bill_to: Optional[str] = None
     ship_to: Optional[str] = None

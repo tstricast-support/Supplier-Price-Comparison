@@ -54,6 +54,7 @@ export default function CreatePOModal({ departments, defaultDepartmentId, editin
   const [form, setForm] = useState(() =>
     editingPO
       ? {
+          po_number: editingPO.po_number || '',
           customer_no: editingPO.customer_no || '',
           vendor_address: editingPO.vendor_address || '',
           bill_to: editingPO.bill_to || '',
@@ -70,6 +71,7 @@ export default function CreatePOModal({ departments, defaultDepartmentId, editin
           other: String(editingPO.other ?? 0),
         }
       : {
+          po_number: '',
           customer_no: '',
           vendor_address: '',
           bill_to: '',
@@ -213,6 +215,7 @@ export default function CreatePOModal({ departments, defaultDepartmentId, editin
     const payload = {
       department_id: Number(departmentId),
       supplier_id: supplierId ? Number(supplierId) : null,
+      po_number: form.po_number.trim() || null,
       vendor_address: form.vendor_address || null,
       customer_no: form.customer_no || null,
       bill_to: form.bill_to || null,
@@ -303,11 +306,24 @@ export default function CreatePOModal({ departments, defaultDepartmentId, editin
                 <div>{profile.phone}</div>
               </div>
               <p className="mt-2 text-[11px] text-gray-400">
-                This header prints on the PDF. The PO number and date are filled in automatically
-                when you save.
+                This header prints on the PDF. The PO number is auto-generated unless you set one
+                below, and the date is filled in automatically when you save.
               </p>
             </div>
           )}
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              Purchase order no.{' '}
+              <span className="font-normal text-gray-400">(leave blank to auto-generate)</span>
+            </label>
+            <input
+              value={form.po_number}
+              onChange={set('po_number')}
+              placeholder="e.g. ILAB-0007"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
 
           {/* This PO is addressed TO this vendor - who you're buying from. */}
           <div className="rounded-xl border border-gray-200 p-4">
