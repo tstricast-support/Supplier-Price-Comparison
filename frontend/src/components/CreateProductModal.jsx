@@ -6,11 +6,14 @@ import {
   getCategories,
   createProduct,
   createSupplierProduct,
+  getSubitems,
 } from '../api/endpoints'
 import SearchableSelect from './SearchableSelect'
 import QuickCreateVendorModal from './QuickCreateVendorModal'
 import QuickCreateCategoryModal from './QuickCreateCategoryModal'
+import SubitemCreateModal from './SubitemCreateModal'
 import { PricingModePicker, DimensionField, toInches } from './PricingFields'
+import { formatRs } from '../utils/currency'
 
 /**
  * "+ New Product" flow, reachable from the nav bar on every screen.
@@ -48,11 +51,33 @@ export default function CreateProductModal({ onClose, onCreated }) {
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState(null)
 
+  // --- Post-save step: add subitem(s) to the item just created ---
+  // Same capability already offered from the Edit Price form's "Add
+  // Subitem" button, surfaced here too so a subitem can be added right
+  // after creating its parent, without navigating away first.
+  const [savedProducts, setSavedProducts] = useState(null) // set once the item is saved
+  const [subitemParentId, setSubitemParentId] = useState('') // which department-copy new subitems attach to
+  const [subitems, setSubitems] = useState([])
+  const [loadingSubitems, setLoadingSubitems] = useState(false)
+  const [showCreateSubitem, setShowCreateSubitem] = useState(false)
+
   useEffect(() => {
     getDepartments().then(({ data }) => setDepartments(data))
     getSuppliers().then(({ data }) => setVendors(data))
     getCategories().then(({ data }) => setCategories(data))
   }, [])
+
+  const loadSubitems = (productId) => {
+    if (!productId) return
+    setLoadingSubitems(true)
+    getSubitems(productId)
+      .then(({ data }) => setSubitems(data))
+      .finally(() => setLoadingSubitems(false))
+  }
+
+  useEffect(() => {
+    if (subitemParentId) loadSubitems(Number(subitemParentId))
+  }, [subitemParentId])
 
   const vendorOptions = useMemo(
     () => vendors.map((v) => ({ id: v.id, label: v.name })),
@@ -165,27 +190,32 @@ export default function CreateProductModal({ onClose, onCreated }) {
           type: 'success',
           message: `"${itemName.trim()}" created in ${createdProducts.length} department(s) with a price from this vendor.`,
         })
-        setTimeout(() => {
-          onCreated()
-        }, 700)
       } else {
         setNotice({
           type: 'error',
           message: `Created, but ${failedCount + priceFailed} step(s) failed (item may already exist in that department).`,
         })
-        onCreated()
       }
+
+      // Move into the "add a subitem?" step instead of closing right away -
+      // the item (and its price) is already saved at this point either way.
+      setSavedProducts(createdProducts)
+      setSubitemParentId(String(createdProducts[0].id))
     } finally {
       setSaving(false)
     }
   }
+
+  const selectedVendorName = vendors.find((v) => String(v.id) === vendorId)?.name || ''
+
+  const finish = () => onCreated()
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
       <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:max-w-lg sm:rounded-2xl sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">New Product</h2>
-          <button onClick={onClose} className="rounded-full p-1 hover:bg-gray-100">
+          <button onClick={savedProducts ? finish : onClose} className="rounded-full p-1 hover:bg-gray-100">
             <X size={20} />
           </button>
         </div>
@@ -201,6 +231,83 @@ export default function CreateProductModal({ onClose, onCreated }) {
           </div>
         )}
 
+        {savedProducts ? (
+          <div className="space-y-4">
+            <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Subitems{subitems.length > 0 ? ` (${subitems.length})` : ''}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateSubitem(true)}
+                  className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
+                >
+                  <PlusCircle size={13} /> Add Subitem
+                </button>
+              </div>
+
+              {savedProducts.length > 1 && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">
+                    Add subitems under
+                  </label>
+                  <select
+                    value={subitemParentId}
+                    onChange={(e) => setSubitemParentId(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  >
+                    {savedProducts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {departments.find((d) => d.id === p.department_id)?.name || `Dept #${p.department_id}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {loadingSubitems && <p className="text-xs text-gray-500">Loading subitems...</p>}
+
+              {!loadingSubitems && subitems.length === 0 && (
+                <p className="text-xs text-gray-400">
+                  No subitems yet. "Add Subitem" creates a new item inside this item, priced from{' '}
+                  {selectedVendorName}.
+                </p>
+              )}
+
+              {!loadingSubitems && subitems.length > 0 && (
+                <ul className="space-y-1.5">
+                  {subitems.map((sub) => {
+                    const cheapest = sub.vendors.find((v) => v.is_cheapest)
+                    return (
+                      <li
+                        key={sub.product_id}
+                        className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                      >
+                        <span className="min-w-0 truncate font-medium text-gray-900">{sub.product_name}</span>
+                        {cheapest ? (
+                          <span className="shrink-0 text-xs font-semibold text-green-700">
+                            from {formatRs(cheapest.unit_price, 2)}
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-xs text-gray-400">No price yet</span>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={finish}
+              className="sticky bottom-0 flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Item Name</label>
@@ -358,7 +465,23 @@ export default function CreateProductModal({ onClose, onCreated }) {
             {saving ? 'Saving...' : 'Save Product'}
           </button>
         </form>
+        )}
       </div>
+
+      {showCreateSubitem && subitemParentId && (
+        <SubitemCreateModal
+          parent={{
+            id: Number(subitemParentId),
+            name: itemName.trim(),
+          }}
+          supplier={{ id: Number(vendorId), name: selectedVendorName }}
+          onClose={() => setShowCreateSubitem(false)}
+          onCreated={() => {
+            setShowCreateSubitem(false)
+            loadSubitems(Number(subitemParentId))
+          }}
+        />
+      )}
 
       {showCreateVendor && (
         <QuickCreateVendorModal
