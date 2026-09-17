@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Search, ChevronLeft, ChevronDown, ChevronRight, Package, CornerDownRight, Pencil, History } from 'lucide-react'
-import { formatRs, unitSuffix } from '../utils/currency'
+import { formatRs, formatMeasurement, unitSuffix } from '../utils/currency'
 import useLongPress from '../utils/useLongPress'
 import ConfirmDialog from './ConfirmDialog'
 import SubitemCreateModal from './SubitemCreateModal'
@@ -190,8 +190,16 @@ function Row({ row, isOpen, onToggle, onAddVendor, onEditVendor, onHistoryVendor
                 </span>
               )}
             </div>
-            <p className="truncate text-xs text-gray-500">
-              {vendor ? vendor.supplier_name : 'No vendor prices yet'}
+            <p className="text-xs text-gray-500">
+              {vendor ? (
+                <>
+                  {vendor.supplier_name} ·{' '}
+                  <span className="font-semibold text-gray-700">Total {formatRs(vendor.total_price)}</span>{' '}
+                  for {formatMeasurement(vendor)}
+                </>
+              ) : (
+                'No vendor prices yet'
+              )}
             </p>
           </div>
         </div>
@@ -294,8 +302,16 @@ function SubitemRow({ subitem, isOpen, onToggle, onAddVendor, onEditVendor, onHi
                 </span>
               )}
             </div>
-            <p className="truncate text-xs text-gray-500">
-              {vendor ? vendor.supplier_name : 'No vendor prices yet'}
+            <p className="text-xs text-gray-500">
+              {vendor ? (
+                <>
+                  {vendor.supplier_name} ·{' '}
+                  <span className="font-semibold text-gray-700">Total {formatRs(vendor.total_price)}</span>{' '}
+                  for {formatMeasurement(vendor)}
+                </>
+              ) : (
+                'No vendor prices yet'
+              )}
             </p>
           </div>
         </div>

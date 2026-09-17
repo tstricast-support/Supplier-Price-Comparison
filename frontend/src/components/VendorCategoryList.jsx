@@ -270,7 +270,8 @@ function ItemRow({
       {isOpen && (
         <div className="border-t border-gray-200 p-3 pt-2.5">
           <p className="mb-2 text-xs text-gray-500">
-            Total {formatRs(item.total_price)} for {formatMeasurement(item)}
+            <span className="font-semibold text-gray-700">Total {formatRs(item.total_price)}</span>{' '}
+            for {formatMeasurement(item)}
           </p>
           <div className="flex gap-2">
             <button
@@ -384,7 +385,8 @@ function SubitemRow({ subitem, supplierId, parentDepartmentId, categoryId, isOpe
       {isOpen && (
         <div className="border-t border-gray-100 p-3 pt-2.5">
           <p className="mb-2 text-xs text-gray-500">
-            Total {formatRs(flat.total_price)} for {formatMeasurement(flat)}
+            <span className="font-semibold text-gray-700">Total {formatRs(flat.total_price)}</span>{' '}
+            for {formatMeasurement(flat)}
           </p>
           <div className="flex gap-2">
             <button

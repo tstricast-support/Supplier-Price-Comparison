@@ -62,7 +62,9 @@ export default function VendorCategoryItemList({ supplier, category, items, load
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-gray-900">{item.product_name}</p>
                     <p className="text-xs text-gray-500">
-                      {item.variant_code_or_size || 'No variant'} · Total {formatRs(item.total_price)} for {formatMeasurement(item)}
+                      {item.variant_code_or_size || 'No variant'} ·{' '}
+                      <span className="font-semibold text-gray-700">Total {formatRs(item.total_price)}</span>{' '}
+                      for {formatMeasurement(item)}
                     </p>
                     <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
                       <Layers size={10} /> {item.department_name}

@@ -59,7 +59,8 @@ export default function VendorList({ item, department, vendors, loading, onBack,
                       )}
                     </div>
                     <p className="text-xs text-gray-500">
-                      Total {formatRs(v.total_price)} for {formatMeasurement(v)}
+                      <span className="font-semibold text-gray-700">Total {formatRs(v.total_price)}</span>{' '}
+                      for {formatMeasurement(v)}
                     </p>
                   </div>
                 </div>

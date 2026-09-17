@@ -128,7 +128,8 @@ export default function MatrixTable() {
                             </span>
                           </div>
                           <div className="mt-1 text-xs text-gray-500">
-                            Total {formatRs(best.total_price)} for {formatMeasurement(best)}
+                            <span className="font-semibold text-gray-700">Total {formatRs(best.total_price)}</span>{' '}
+                            for {formatMeasurement(best)}
                           </div>
                         </div>
                       ) : (
