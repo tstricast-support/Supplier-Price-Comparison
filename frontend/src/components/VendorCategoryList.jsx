@@ -256,7 +256,11 @@ function ItemRow({
                 </span>
               )}
             </div>
-            <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
+            <p className="text-xs text-gray-500">
+              <span className="font-semibold text-gray-700">Total {formatRs(item.total_price)}</span>{' '}
+              for {formatMeasurement(item)}
+            </p>
+            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
               <Layers size={9} /> {item.department_name}
             </span>
           </div>
@@ -269,10 +273,6 @@ function ItemRow({
 
       {isOpen && (
         <div className="border-t border-gray-200 p-3 pt-2.5">
-          <p className="mb-2 text-xs text-gray-500">
-            <span className="font-semibold text-gray-700">Total {formatRs(item.total_price)}</span>{' '}
-            for {formatMeasurement(item)}
-          </p>
           <div className="flex gap-2">
             <button
               onClick={onEdit}
@@ -367,6 +367,10 @@ function SubitemRow({ subitem, supplierId, parentDepartmentId, categoryId, isOpe
                 </span>
               )}
             </div>
+            <p className="text-xs text-gray-500">
+              <span className="font-semibold text-gray-700">Total {formatRs(flat.total_price)}</span>{' '}
+              for {formatMeasurement(flat)}
+            </p>
           </div>
         </div>
 
@@ -384,10 +388,6 @@ function SubitemRow({ subitem, supplierId, parentDepartmentId, categoryId, isOpe
 
       {isOpen && (
         <div className="border-t border-gray-100 p-3 pt-2.5">
-          <p className="mb-2 text-xs text-gray-500">
-            <span className="font-semibold text-gray-700">Total {formatRs(flat.total_price)}</span>{' '}
-            for {formatMeasurement(flat)}
-          </p>
           <div className="flex gap-2">
             <button
               onClick={() => onEdit(flat)}
