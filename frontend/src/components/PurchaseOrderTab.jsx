@@ -111,7 +111,7 @@ export default function PurchaseOrderTab() {
     }
   }
 
-    const handleShare = async (po) => {
+      const handleShare = async (po) => {
     try {
       const { data: fullPo } = await getPurchaseOrder(po.id)
       const blob = await generatePOPdfBlob(fullPo)
@@ -123,25 +123,36 @@ export default function PurchaseOrderTab() {
         `Total: Rs. ${po.total.toLocaleString()}\n\n` +
         `Please find the PO attached. Thank you.`
 
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: po.po_number, text: message })
-        return
+      const canShareFiles = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [file] }))
+
+      if (canShareFiles) {
+        try {
+          await navigator.share({ files: [file], title: po.po_number, text: message })
+          return
+        } catch (shareErr) {
+          if (shareErr?.name === 'AbortError') return // user cancelled the share sheet - not an error
+          console.error('navigator.share failed, falling back:', shareErr)
+          // fall through to the fallback below
+        }
+      } else {
+        console.warn(
+          'File sharing unavailable on this device. navigator.share:',
+          !!navigator.share,
+          '- is the site loaded over https?',
+          window.location.protocol
+        )
       }
 
-      // Desktop / unsupported browsers: no scriptable way to attach a
-      // file to WhatsApp, so download the PDF and open WhatsApp with the
-      // text pre-filled - the person attaches the just-downloaded file.
+      // Fallback: open the PDF in a new tab (works even without HTTPS or
+      // Web Share support) so the person can use their device's own
+      // viewer to save/share it, then open WhatsApp with the text ready.
       const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${po.po_number}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
+      window.open(url, '_blank')
       window.open(buildWhatsAppUrl(po), '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
     } catch (err) {
-      if (err?.name !== 'AbortError') {
-        setErr('Could not share that purchase order.')
-      }
+      console.error('Share failed:', err)
+      setErr(`Could not share that purchase order: ${err?.message || 'unknown error'}`)
     }
   }
 
@@ -193,7 +204,7 @@ export default function PurchaseOrderTab() {
         ))}
       </div>
 
-            <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
