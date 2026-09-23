@@ -9,6 +9,7 @@ const DEPARTMENT_LOGOS = {
   i_photobook: '/logos/i-photobook.png',
   i_lab_std: '/logos/i-lab-std.png',
   dd_engineering: '/logos/dd-engineering.png',
+  tricast:'/logos/tricast.png'
 }
 
 function DepartmentLogo({ department }) {

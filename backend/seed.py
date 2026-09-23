@@ -24,6 +24,7 @@ DEPARTMENTS = [
     ("i_photobook", "I PHOTOBOOK"),
     ("i_lab_std", "I LAB STD"),
     ("dd_engineering", "DD ENGINEERING"),
+    ("tricast", "TRICAST"),
 ]
 
 try:

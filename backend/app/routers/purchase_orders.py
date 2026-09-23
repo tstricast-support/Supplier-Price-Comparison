@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app import models, schemas
-from app.department_profiles import profile_for
+from app.department_profiles import profile_for,item_source_codes
 
 router = APIRouter(prefix="/api", tags=["purchase-orders"])
 
@@ -70,10 +70,15 @@ def get_po_items(
     if not department:
         raise HTTPException(status_code=404, detail="Department not found")
 
+    source_codes = item_source_codes(department)
+    source_dept_ids = [
+        d.id for d in db.query(models.Department).filter(models.Department.code.in_(source_codes)).all()
+    ] or [department_id]  # fallback: never end up with an empty filter
+
     products = (
         db.query(models.Product)
         .options(joinedload(models.Product.category), joinedload(models.Product.parent))
-        .filter(models.Product.department_id == department_id)
+        .filter(models.Product.department_id.in_(source_dept_ids))
         .order_by(models.Product.name)
         .all()
     )

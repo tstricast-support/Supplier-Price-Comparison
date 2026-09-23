@@ -19,12 +19,12 @@ DEPARTMENT_PO_PROFILES = {
         "company_name": "I Lab (Pvt) Ltd",
         "address_line1": " 17/A SIRI KURUSA ROAD,",
         "address_line2": "GAMPAHA, Sri Lanka",
-        "phone": " 0332 239 000",
+        "phone": "+94 70 460 2606",
         "email": "",
         "website": "",
         "contact_person": "Procurement Officer",
         "logo_text": "I LAB",
-        "logo_color": "#1d4ed8",
+        "logo_color": "#be185d",
         "logo_url": "/logos/i-lab.png",
     },
     "i_photobook": {
@@ -32,7 +32,7 @@ DEPARTMENT_PO_PROFILES = {
         "company_name": "I Lab (Pvt) Ltd",
         "address_line1": " 17/A SIRI KURUSA ROAD,",
         "address_line2": "GAMPAHA, Sri Lanka",
-        "phone": "0332 239 000",
+        "phone": "+94 70 460 2606",
         "email": "",
         "website": "",
         "contact_person": "Procurement Officer",
@@ -49,7 +49,7 @@ DEPARTMENT_PO_PROFILES = {
         "company_name": "I Lab std (Pvt) Ltd",
         "address_line1": " 17/A SIRI KURUSA ROAD,",
         "address_line2": "GAMPAHA, Sri Lanka",
-        "phone": " 0332 239 000",
+        "phone": " +94 70 460 2606",
         "email": "",
         "website": "",
         "contact_person": "Procurement Officer",
@@ -69,6 +69,19 @@ DEPARTMENT_PO_PROFILES = {
         "logo_text": "DD ENGINEERING",
         "logo_color": "#b45309",
         "logo_url": "/logos/dd-engineering.png",
+    },
+        "tricast": {
+        "po_prefix": "TRICAST",
+        "company_name": "Tricast (Pvt) Ltd",
+        "address_line1": " 17/A SIRI KURUSA ROAD,",
+        "address_line2": "GAMPAHA, Sri Lanka",
+        "phone": "+94 70 460 2606",
+        "email": "",
+        "website": "",
+        "contact_person": "Procurement Officer",
+        "logo_text": "TRICAST",
+        "logo_color": "#213A70",
+        "logo_url": "/logos/tricast.png",
     },
 }
 
@@ -92,3 +105,18 @@ def profile_for(department) -> dict:
     """Letterhead for a Department ORM row, falling back to a safe default."""
     base = DEPARTMENT_PO_PROFILES.get(department.code or "", DEFAULT_PO_PROFILE)
     return {**base, "department_id": department.id, "department_name": department.name}
+
+# Some departments print their own letterhead but don't own a product
+# catalog of their own - they pick items from OTHER departments' catalogs
+# instead. Keys are the PO department's `code`; values are the department
+# `code`s whose products should be offered as pickable items.
+# A department not listed here just uses its own products, as before.
+PO_ITEM_SOURCE_DEPARTMENT_CODES = {
+    "tricast": ["i_lab", "i_photobook"],
+}
+
+
+def item_source_codes(department) -> list[str]:
+    """Which department code(s)' products are pickable on this department's PO.
+    Defaults to just the department's own code."""
+    return PO_ITEM_SOURCE_DEPARTMENT_CODES.get(department.code or "", [department.code])
