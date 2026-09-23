@@ -22,6 +22,7 @@ export default function PurchaseOrderTab() {
   const [deptId, setDeptId] = useState(null) // null = every department
   const [orders, setOrders] = useState([])
   const [query, setQuery] = useState('')
+  const [monthFilter, setMonthFilter] = useState('') // '' = all months, else 'YYYY-MM'
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -48,16 +49,30 @@ export default function PurchaseOrderTab() {
 
   useEffect(loadOrders, [deptId])
 
-  const filtered = useMemo(() => {
+    const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return orders
-    return orders.filter(
-      (o) =>
+    return orders.filter((o) => {
+      const matchesQuery =
+        !q ||
         o.po_number.toLowerCase().includes(q) ||
         (o.supplier_name || '').toLowerCase().includes(q) ||
         o.department_name.toLowerCase().includes(q)
-    )
-  }, [orders, query])
+      const matchesMonth = !monthFilter || (o.po_date || '').slice(0, 7) === monthFilter
+      return matchesQuery && matchesMonth
+    })
+  }, [orders, query, monthFilter])
+
+    // Only grouped when viewing every department - a single department chip
+  // already scopes the list, so grouping there would just be one section.
+  const grouped = useMemo(() => {
+    if (deptId !== null) return null
+    const byDept = new Map()
+    for (const po of filtered) {
+      if (!byDept.has(po.department_name)) byDept.set(po.department_name, [])
+      byDept.get(po.department_name).push(po)
+    }
+    return [...byDept.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  }, [filtered, deptId])
 
   const handleDownload = async (poId) => {
     // Open the window inside the click handler so iOS Safari keeps it.
@@ -119,14 +134,33 @@ export default function PurchaseOrderTab() {
         ))}
       </div>
 
-      <div className="relative">
-        <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by PO number or vendor"
-          className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-        />
+            <div className="flex flex-wrap gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by PO number or vendor"
+            className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          />
+        </div>
+        <div className="relative">
+          <input
+            type="month"
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            className="rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-sm text-gray-700 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          />
+          {monthFilter && (
+            <button
+              onClick={() => setMonthFilter('')}
+              title="Clear month filter"
+              className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 bg-white text-[11px] text-gray-500 hover:bg-gray-50"
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
 
       {err && <p className="text-sm text-red-600">{err}</p>}
@@ -140,49 +174,47 @@ export default function PurchaseOrderTab() {
         </div>
       )}
 
-      <div className="space-y-2">
-        {filtered.map((po) => (
-          <div
-            key={po.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3"
-          >
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-gray-900">{po.po_number}</span>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
-                  {po.department_name}
+      {grouped ? (
+        <div className="space-y-5">
+          {grouped.map(([deptName, deptOrders]) => (
+            <div key={deptName}>
+              <div className="mb-2 flex items-center gap-2">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">{deptName}</h3>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
+                  {deptOrders.length}
                 </span>
               </div>
-              <p className="mt-0.5 truncate text-xs text-gray-500">
-                {new Date(po.po_date).toLocaleDateString()} · {po.supplier_name || 'No vendor'} ·{' '}
-                {po.line_count} item{po.line_count === 1 ? '' : 's'}
-              </p>
+              <div className="space-y-2">
+                {deptOrders.map((po) => (
+                  <POOrderRow
+                    key={po.id}
+                    po={po}
+                    onDownload={handleDownload}
+                    onEdit={handleEdit}
+                    onDelete={setConfirmDelete}
+                    openMenuId={openMenuId}
+                    setOpenMenuId={setOpenMenuId}
+                  />
+                ))}
+              </div>
             </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-900">{formatRs(po.total)}</span>
-              <button
-                onClick={() => handleDownload(po.id)}
-                title="Download PDF"
-                className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-              >
-                <Download size={14} />
-                PDF
-              </button>
-              <PORowMenu
-                open={openMenuId === po.id}
-                onToggle={() => setOpenMenuId((cur) => (cur === po.id ? null : po.id))}
-                onClose={() => setOpenMenuId(null)}
-                onEdit={() => handleEdit(po.id)}
-                onDelete={() => {
-                  setOpenMenuId(null)
-                  setConfirmDelete(po)
-                }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((po) => (
+            <POOrderRow
+              key={po.id}
+              po={po}
+              onDownload={handleDownload}
+              onEdit={handleEdit}
+              onDelete={setConfirmDelete}
+              openMenuId={openMenuId}
+              setOpenMenuId={setOpenMenuId}
+            />
+          ))}
+        </div>
+      )}
 
       {(showCreate || editingPO) && (
         <CreatePOModal
@@ -289,5 +321,46 @@ function DeptChip({ active, onClick, children }) {
     >
       {children}
     </button>
+  )
+}
+
+function POOrderRow({ po, onDownload, onEdit, onDelete, openMenuId, setOpenMenuId }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-gray-900">{po.po_number}</span>
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+            {po.department_name}
+          </span>
+        </div>
+        <p className="mt-0.5 truncate text-xs text-gray-500">
+          {new Date(po.po_date).toLocaleDateString()} · {po.supplier_name || 'No vendor'} ·{' '}
+          {po.line_count} item{po.line_count === 1 ? '' : 's'}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-semibold text-gray-900">{formatRs(po.total)}</span>
+        <button
+          onClick={() => onDownload(po.id)}
+          title="Download PDF"
+          className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+        >
+          <Download size={14} />
+          PDF
+        </button>
+        <PORowMenu
+          open={openMenuId === po.id}
+          onToggle={() => setOpenMenuId((cur) => (cur === po.id ? null : po.id))}
+          onClose={() => setOpenMenuId(null)}
+          onEdit={() => onEdit(po.id)}
+          onDelete={() => {
+            setOpenMenuId(null)
+            onDelete(po)
+          }}
+        />
+      </div>
+    </div>
   )
 }
