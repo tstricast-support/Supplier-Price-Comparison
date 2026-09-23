@@ -46,25 +46,27 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="flex min-w-0 items-center gap-2">
-            <h1 className="truncate text-lg text-base font-bold text-black">Tricast Price Comparison</h1>
+        <div className="mx-auto max-w-5xl px-4 py-3 sm:px-6">
+          <h1 className="mb-2 truncate text-lg text-base font-bold text-black">Tricast Price Comparison</h1>
+
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <GlobalSearchBar
+                onSelectCategory={handleSearchSelectCategory}
+                onSelectVendor={handleSearchSelectVendor}
+                onSelectItem={handleSearchSelectItem}
+              />
+            </div>
+
+            <button
+              onClick={() => setShowCreateProduct(true)}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 active:scale-[0.98] sm:px-4"
+            >
+              <PlusCircle size={16} />
+              <span className="hidden sm:inline">New Product</span>
+              <span className="sm:hidden">New</span>
+            </button>
           </div>
-
-          <GlobalSearchBar
-            onSelectCategory={handleSearchSelectCategory}
-            onSelectVendor={handleSearchSelectVendor}
-            onSelectItem={handleSearchSelectItem}
-          />
-
-          <button
-            onClick={() => setShowCreateProduct(true)}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 active:scale-[0.98] sm:px-4"
-          >
-            <PlusCircle size={16} />
-            <span className="hidden sm:inline">New Product</span>
-            <span className="sm:hidden">New</span>
-          </button>
         </div>
 
         <div className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 sm:px-6">

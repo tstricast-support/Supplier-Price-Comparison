@@ -180,28 +180,33 @@ export default function PurchaseOrderTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
-          <FileText size={18} className="text-brand-600" />
-          Purchase Orders
-        </h2>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <h2 className="flex shrink-0 items-center gap-2 text-base font-semibold text-gray-900">
+            <FileText size={18} className="text-brand-600" />
+            Purchase Orders
+          </h2>
+          <select
+            value={deptId ?? ''}
+            onChange={(e) => setDeptId(e.target.value ? Number(e.target.value) : null)}
+            className="min-w-0 max-w-[180px] flex-1 rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm text-gray-700 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          >
+            <option value="">All departments</option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 active:scale-[0.98]"
+          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 active:scale-[0.98]"
         >
           <PlusCircle size={16} />
-          Create purchase order
+          <span className="hidden sm:inline">Create purchase order</span>
+          <span className="sm:hidden">Create</span>
         </button>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        <DeptChip active={deptId === null} onClick={() => setDeptId(null)}>
-          All departments
-        </DeptChip>
-        {departments.map((d) => (
-          <DeptChip key={d.id} active={deptId === d.id} onClick={() => setDeptId(d.id)}>
-            {d.name}
-          </DeptChip>
-        ))}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -405,11 +410,11 @@ function DeptChip({ active, onClick, children }) {
 
 function POOrderRow({ po, onDownload, onShare, onEdit, onDelete, openMenuId, setOpenMenuId }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
-      <div className="min-w-0">
+    <div className="flex items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-gray-900">{po.po_number}</span>
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+          <span className="truncate font-semibold text-gray-900">{po.po_number}</span>
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
             {po.department_name}
           </span>
         </div>
@@ -419,15 +424,15 @@ function POOrderRow({ po, onDownload, onShare, onEdit, onDelete, openMenuId, set
         </p>
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-gray-900">{formatRs(po.total)}</span>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="whitespace-nowrap text-sm font-semibold text-gray-900">{formatRs(po.total)}</span>
         <button
           onClick={() => onDownload(po.id)}
           title="Download PDF"
           className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
         >
           <Download size={14} />
-          PDF
+          <span className="hidden sm:inline">PDF</span>
         </button>
         <PORowMenu
           open={openMenuId === po.id}
