@@ -46,7 +46,7 @@ export default function DepartmentGrid({ departments, loading, onSelect }) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3">
       {departments.map((d) => (
         <button
           key={d.id}
