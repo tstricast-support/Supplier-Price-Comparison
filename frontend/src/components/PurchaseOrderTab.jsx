@@ -328,7 +328,7 @@ export default function PurchaseOrderTab() {
  * accident; the person has to open the menu first, which is a deliberate
  * action, then pick from it.
  */
-function PORowMenu({ open, onToggle, onClose, onEdit, onDelete }) {
+function PORowMenu({ open, onToggle, onClose, onShare, onEdit, onDelete }) {
   const ref = useRef(null)
 
   useEffect(() => {
@@ -360,7 +360,14 @@ function PORowMenu({ open, onToggle, onClose, onEdit, onDelete }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-10 mt-1 w-36 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+        <div className="absolute right-0 z-10 mt-1 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+          <button
+            onClick={onShare}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-green-700 hover:bg-green-50"
+          >
+            <Share2 size={13} />
+            Share on WhatsApp
+          </button>
           <button
             onClick={onEdit}
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50"
@@ -422,17 +429,14 @@ function POOrderRow({ po, onDownload, onShare, onEdit, onDelete, openMenuId, set
           <Download size={14} />
           PDF
         </button>
-        <button
-          onClick={() => onShare(po)}
-          title={po.supplier_phone ? `Share PDF on WhatsApp to ${po.supplier_phone}` : 'Share PDF on WhatsApp'}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50"
-        >
-          <Share2 size={14} />
-        </button>
         <PORowMenu
           open={openMenuId === po.id}
           onToggle={() => setOpenMenuId((cur) => (cur === po.id ? null : po.id))}
           onClose={() => setOpenMenuId(null)}
+          onShare={() => {
+            setOpenMenuId(null)
+            onShare(po)
+          }}
           onEdit={() => onEdit(po.id)}
           onDelete={() => {
             setOpenMenuId(null)
