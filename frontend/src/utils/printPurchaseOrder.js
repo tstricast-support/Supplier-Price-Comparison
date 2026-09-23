@@ -40,7 +40,7 @@ function multiline(text) {
     .join('')
 }
 
-function styles(accent) {
+export function styles(accent) {
   return `
     @page { size: A4; margin: 12mm; }
     * { box-sizing: border-box; }
@@ -79,10 +79,36 @@ function styles(accent) {
     table.grid { width: 100%; border-collapse: collapse; }
     table.grid th { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; color: ${accent}; text-align: center; padding: 5px 6px; border-bottom: 1px solid #d1d5db; }
     table.grid td { font-size: 10.5px; padding: 5px 8px; border: 1px solid #e5e7eb; height: 22px; }
-    .shipping td { text-align: center; }
-    .items th { text-align: left; }
-    .items th.c, .items td.c { text-align: center; }
-    .items th.r, .items td.r { text-align: right; }
+
+    .shipping-grid { display: flex; width: 100%; }
+    .shipping-col { flex: 1 1 20%; min-width: 0; box-sizing: border-box; }
+    .shipping-th {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.5px; color: ${accent};
+      padding: 5px 6px; border-bottom: 1px solid #d1d5db; box-sizing: border-box;
+      min-height: 24px; display: flex; align-items: center; justify-content: center;
+    }
+    .shipping-td {
+      font-size: 10.5px; padding: 5px 8px; border: 1px solid #e5e7eb; box-sizing: border-box;
+      min-height: 22px; display: flex; align-items: center; justify-content: center;
+    }
+
+    .items-grid { width: 100%; margin-top: 18px; }
+    .items-head, .items-row { display: flex; }
+    .items-head > div {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.5px; color: ${accent};
+      padding: 5px 6px; border-bottom: 1px solid #d1d5db; box-sizing: border-box;
+      min-height: 24px; display: flex; align-items: center;
+    }
+    .items-row > div {
+      font-size: 10.5px; padding: 5px 8px; border: 1px solid #e5e7eb; box-sizing: border-box;
+      min-height: 22px; display: flex; align-items: center;
+    }
+    .items-row { break-inside: avoid; }
+    .col-itemno { flex: 0 0 110px; justify-content: center; }
+    .col-desc { flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
+    .col-qty { flex: 0 0 70px; justify-content: center; }
+    .col-price { flex: 0 0 110px; justify-content: flex-end; }
+    .col-total { flex: 0 0 120px; justify-content: flex-end; }
 
     .bottom { display: flex; justify-content: space-between; gap: 30px; margin-top: 14px; }
     .remarks { flex: 1; font-size: 10.5px; color: #4b5563; line-height: 1.6; }
@@ -103,12 +129,11 @@ function styles(accent) {
     @media print {
       .print-controls { display: none !important; }
       .sheet { padding: 0; max-width: none; }
-      .items tr { break-inside: avoid; }
     }
   `
 }
 
-function buildBody(po) {
+export function buildBody(po) {
   const accent = po.logo_color || '#4b5563'
   const lines = po.lines || []
   const MIN_ROWS = 8
@@ -122,28 +147,29 @@ function buildBody(po) {
   // shown on the printed PO when the "Show Item No." checkbox was ticked
   // on the form (po.show_item_no). Off by default.
   const showItemNo = !!po.show_item_no
-  const itemNoCell = (value) => (showItemNo ? `<td>${esc(value || '')}</td>` : '')
-  const itemNoHeader = showItemNo ? `<th style="width:110px">ITEM NO.</th>` : ''
-
-  const itemRows = lines
+   const itemRows = lines
     .map(
       (l) => `
-        <tr>
-          ${itemNoCell(l.item_no)}
-          <td>${esc(l.description)}</td>
-          <td class="c">${esc(l.qty)}</td>
-          <td class="r">${money(l.unit_price)}</td>
-          <td class="r">${money(l.line_total)}</td>
-        </tr>`
+        <div class="items-row">
+          ${showItemNo ? `<div class="col-itemno">${esc(l.item_no || '')}</div>` : ''}
+          <div class="col-desc">${esc(l.description)}</div>
+          <div class="col-qty">${esc(l.qty)}</div>
+          <div class="col-price">${money(l.unit_price)}</div>
+          <div class="col-total">${money(l.line_total)}</div>
+        </div>`
     )
     .join('')
 
   const blankRows = Array.from({ length: blanks })
     .map(
       () => `
-        <tr>
-          ${showItemNo ? '<td>&nbsp;</td>' : ''}<td></td><td></td><td></td><td class="r">0.00</td>
-        </tr>`
+        <div class="items-row">
+          ${showItemNo ? '<div class="col-itemno">&nbsp;</div>' : ''}
+          <div class="col-desc"></div>
+          <div class="col-qty"></div>
+          <div class="col-price"></div>
+          <div class="col-total">0.00</div>
+        </div>`
     )
     .join('')
 
@@ -196,42 +222,40 @@ function buildBody(po) {
         <div class="party"></div>
       </div>
 
-      <table class="grid shipping">
-        <thead>
-          <tr>
-            <th>SHIPPING METHOD</th>
-            <th>SHIPPING TERMS</th>
-            <th>SHIP VIA</th>
-            <th>PAYMENT</th>
-            <th>DELIVERY DATE</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>${esc(po.shipping_method || '')}</td>
-            <td>${esc(po.shipping_terms || '')}</td>
-            <td>${esc(po.ship_via || '')}</td>
-            <td>${esc(po.payment_terms || '')}</td>
-            <td>${esc(po.delivery_date || '')}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="shipping-grid">
+        <div class="shipping-col">
+          <div class="shipping-th">SHIPPING METHOD</div>
+          <div class="shipping-td">${esc(po.shipping_method || '')}</div>
+        </div>
+        <div class="shipping-col">
+          <div class="shipping-th">SHIPPING TERMS</div>
+          <div class="shipping-td">${esc(po.shipping_terms || '')}</div>
+        </div>
+        <div class="shipping-col">
+          <div class="shipping-th">SHIP VIA</div>
+          <div class="shipping-td">${esc(po.ship_via || '')}</div>
+        </div>
+        <div class="shipping-col">
+          <div class="shipping-th">PAYMENT</div>
+          <div class="shipping-td">${esc(po.payment_terms || '')}</div>
+        </div>
+        <div class="shipping-col">
+          <div class="shipping-th">DELIVERY DATE</div>
+          <div class="shipping-td">${esc(po.delivery_date || '')}</div>
+        </div>
+      </div>
 
-      <table class="grid items" style="margin-top:18px">
-        <thead>
-          <tr>
-            ${itemNoHeader}
-            <th>DESCRIPTION</th>
-            <th class="c" style="width:70px">QTY</th>
-            <th class="r" style="width:110px">UNIT PRICE</th>
-            <th class="r" style="width:120px">TOTAL</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemRows}
-          ${blankRows}
-        </tbody>
-      </table>
+      <div class="items-grid">
+        <div class="items-head">
+          ${showItemNo ? `<div class="col-itemno">ITEM NO.</div>` : ''}
+          <div class="col-desc">DESCRIPTION</div>
+          <div class="col-qty">QTY</div>
+          <div class="col-price">UNIT PRICE</div>
+          <div class="col-total">TOTAL</div>
+        </div>
+        ${itemRows}
+        ${blankRows}
+      </div>
 
       <div class="bottom">
         <div class="remarks">

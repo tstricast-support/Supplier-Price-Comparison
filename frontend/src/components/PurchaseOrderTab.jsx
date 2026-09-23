@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { FileText, PlusCircle, Download, Trash2, Search, Pencil, MoreVertical } from 'lucide-react'
+import { FileText, PlusCircle, Download, Trash2, Search, Pencil, MoreVertical, Share2 } from 'lucide-react'
 import {
   getDepartments,
   getPurchaseOrders,
@@ -10,6 +10,31 @@ import { formatRs } from '../utils/currency'
 import printPurchaseOrder from '../utils/printPurchaseOrder'
 import CreatePOModal from './CreatePOModal'
 import ConfirmDialog from './ConfirmDialog'
+import { generatePOPdfBlob } from '../utils/generatePOPdf'
+
+function toWhatsAppNumber(phone, defaultCountryCode = '94') {
+  let digits = (phone || '').replace(/[^\d]/g, '')
+  if (!digits) return null
+  if (digits.startsWith('0')) {
+    digits = defaultCountryCode + digits.slice(1) // 0771234567 -> 94771234567
+  } else if (!digits.startsWith(defaultCountryCode) && digits.length <= 10) {
+    digits = defaultCountryCode + digits // bare 771234567 -> 94771234567
+  }
+  return digits
+}
+
+function buildWhatsAppUrl(po) {
+  const number = toWhatsAppNumber(po.supplier_phone)
+  const message =
+    `Purchase Order ${po.po_number}\n` +
+    `Department: ${po.department_name}\n` +
+    `Date: ${new Date(po.po_date).toLocaleDateString()}\n` +
+    `Items: ${po.line_count}\n` +
+    `Total: Rs. ${po.total.toLocaleString()}\n\n` +
+    `Please find the PO attached / to follow. Thank you.`
+  const base = number ? `https://wa.me/${number}` : 'https://wa.me/'
+  return `${base}?text=${encodeURIComponent(message)}`
+}
 
 /**
  * PO tab. Purchase orders are filed under the department they were issued
@@ -83,6 +108,40 @@ export default function PurchaseOrderTab() {
     } catch {
       win?.close()
       setErr('Could not open that purchase order.')
+    }
+  }
+
+    const handleShare = async (po) => {
+    try {
+      const { data: fullPo } = await getPurchaseOrder(po.id)
+      const blob = await generatePOPdfBlob(fullPo)
+      const file = new File([blob], `${po.po_number}.pdf`, { type: 'application/pdf' })
+
+      const message =
+        `Purchase Order ${po.po_number}\n` +
+        `Department: ${po.department_name}\n` +
+        `Total: Rs. ${po.total.toLocaleString()}\n\n` +
+        `Please find the PO attached. Thank you.`
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: po.po_number, text: message })
+        return
+      }
+
+      // Desktop / unsupported browsers: no scriptable way to attach a
+      // file to WhatsApp, so download the PDF and open WhatsApp with the
+      // text pre-filled - the person attaches the just-downloaded file.
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${po.po_number}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      window.open(buildWhatsAppUrl(po), '_blank')
+    } catch (err) {
+      if (err?.name !== 'AbortError') {
+        setErr('Could not share that purchase order.')
+      }
     }
   }
 
@@ -190,6 +249,7 @@ export default function PurchaseOrderTab() {
                     key={po.id}
                     po={po}
                     onDownload={handleDownload}
+                    onShare={handleShare}
                     onEdit={handleEdit}
                     onDelete={setConfirmDelete}
                     openMenuId={openMenuId}
@@ -207,6 +267,7 @@ export default function PurchaseOrderTab() {
               key={po.id}
               po={po}
               onDownload={handleDownload}
+              onShare={handleShare}
               onEdit={handleEdit}
               onDelete={setConfirmDelete}
               openMenuId={openMenuId}
@@ -324,7 +385,7 @@ function DeptChip({ active, onClick, children }) {
   )
 }
 
-function POOrderRow({ po, onDownload, onEdit, onDelete, openMenuId, setOpenMenuId }) {
+function POOrderRow({ po, onDownload, onShare, onEdit, onDelete, openMenuId, setOpenMenuId }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
       <div className="min-w-0">
@@ -349,6 +410,13 @@ function POOrderRow({ po, onDownload, onEdit, onDelete, openMenuId, setOpenMenuI
         >
           <Download size={14} />
           PDF
+        </button>
+        <button
+          onClick={() => onShare(po)}
+          title={po.supplier_phone ? `Share PDF on WhatsApp to ${po.supplier_phone}` : 'Share PDF on WhatsApp'}
+          className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50"
+        >
+          <Share2 size={14} />
         </button>
         <PORowMenu
           open={openMenuId === po.id}

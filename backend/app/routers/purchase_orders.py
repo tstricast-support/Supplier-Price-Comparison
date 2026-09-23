@@ -398,6 +398,7 @@ def list_purchase_orders(
             department_id=po.department_id,
             department_name=po.department.name if po.department else "",
             supplier_name=po.supplier.name if po.supplier else None,
+            supplier_phone=po.supplier.phone if po.supplier else None,
             line_count=len(po.lines),
             total=po.total,
         )

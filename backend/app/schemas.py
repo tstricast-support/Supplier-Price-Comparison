@@ -566,6 +566,7 @@ class PurchaseOrderSummaryOut(BaseModel):
     department_id: int
     department_name: str
     supplier_name: Optional[str] = None
+    supplier_phone: Optional[str] = None
     line_count: int
     total: float
  
