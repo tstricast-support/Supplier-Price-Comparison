@@ -10,7 +10,7 @@ A saved PO is the stored artefact: the PDF is rendered from it on demand
 produces exactly the same document, and every PO stays filed under the
 department it was issued for.
 """
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -159,6 +159,11 @@ def _next_po_number(db: Session, department: models.Department) -> str:
             return candidate
         seq += 1
 
+def _po_datetime(d: date) -> datetime:
+    """User-picked PO date -> the timestamp we store.
+    Pinned to 12:00 UTC so the calendar day stays the same after the
+    browser converts it to local time."""
+    return datetime(d.year, d.month, d.day, 12, 0, tzinfo=timezone.utc)
 
 def _validate_po_number(db: Session, po_number: str, exclude_id: Optional[int] = None) -> None:
     """Raise if another PO already uses this number. po_number is globally
@@ -214,7 +219,7 @@ def create_purchase_order(payload: schemas.PurchaseOrderCreate, db: Session = De
     po = models.PurchaseOrder(
         po_number=po_number,
         department_id=department.id,
-        po_date=datetime.now(timezone.utc),  # date filled automatically
+        po_date=_po_datetime(payload.po_date) if payload.po_date else datetime.now(timezone.utc),
         customer_no=payload.customer_no,
         company_name=profile["company_name"],
         company_address_line1=profile.get("address_line1"),
@@ -272,15 +277,7 @@ def create_purchase_order(payload: schemas.PurchaseOrderCreate, db: Session = De
 
 @router.put("/purchase-orders/{po_id}", response_model=schemas.PurchaseOrderOut)
 def update_purchase_order(po_id: int, payload: schemas.PurchaseOrderCreate, db: Session = Depends(get_db)):
-    """
-    Edits an existing PO in place, same payload shape as create. The
-    po_date and department letterhead are snapshot at issue time and never
-    change here - only the department a PO already belongs to can be
-    edited, not moved to a different one. The po_number CAN be edited (see
-    _validate_po_number below), unlike po_date/letterhead. Lines are
-    replaced wholesale; qty/price/description can all change and lines have
-    no stable identity worth diffing against.
-    """
+   
     po = (
         db.query(models.PurchaseOrder)
         .options(joinedload(models.PurchaseOrder.lines))
@@ -319,6 +316,8 @@ def update_purchase_order(po_id: int, payload: schemas.PurchaseOrderCreate, db: 
     other = _round(payload.other)
     total = _round(less_discount + total_tax + shipping + other)
 
+    if payload.po_date:
+        po.po_date = _po_datetime(payload.po_date)
     po.customer_no = payload.customer_no
     po.supplier_id = supplier.id if supplier else None
     po.vendor_name = payload.vendor_name or (supplier.name if supplier else None)

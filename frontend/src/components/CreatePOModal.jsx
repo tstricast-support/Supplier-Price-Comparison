@@ -10,6 +10,15 @@ import {
 import SearchableSelect from './SearchableSelect'
 import { formatRs, formatAmount } from '../utils/currency'
 
+// Date -> 'YYYY-MM-DD' in the user's local timezone (what <input type="date"> expects)
+function toDateInputValue(value) {
+  const d = value ? new Date(value) : new Date()
+  if (isNaN(d.getTime())) return ''
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mm}-${dd}`
+}
+
 /**
  * Create OR edit a purchase order.
  *
@@ -50,11 +59,13 @@ export default function CreatePOModal({ departments, defaultDepartmentId, editin
   // removed) but is hidden on the printed PO by default. Ticking this
   // shows the ITEM NO. column on the final print/PDF.
   const [showItemNo, setShowItemNo] = useState(editingPO?.show_item_no ?? false)
-
+    // Date the form opens with. We only send po_date if the user changes it.
+  const [initialPoDate] = useState(() => toDateInputValue(editingPO?.po_date))
   const [form, setForm] = useState(() =>
     editingPO
       ? {
           po_number: editingPO.po_number || '',
+          po_date: toDateInputValue(editingPO.po_date),
           customer_no: editingPO.customer_no || '',
           vendor_address: editingPO.vendor_address || '',
           bill_to: editingPO.bill_to || '',
@@ -72,6 +83,7 @@ export default function CreatePOModal({ departments, defaultDepartmentId, editin
         }
       : {
           po_number: '',
+          po_date: toDateInputValue(),
           customer_no: '',
           vendor_address: '',
           bill_to: '',
@@ -216,6 +228,7 @@ export default function CreatePOModal({ departments, defaultDepartmentId, editin
       department_id: Number(departmentId),
       supplier_id: supplierId ? Number(supplierId) : null,
       po_number: form.po_number.trim() || null,
+      po_date: form.po_date && form.po_date !== initialPoDate ? form.po_date : null,
       vendor_address: form.vendor_address || null,
       customer_no: form.customer_no || null,
       bill_to: form.bill_to || null,
@@ -307,22 +320,38 @@ export default function CreatePOModal({ departments, defaultDepartmentId, editin
               </div>
               <p className="mt-2 text-[11px] text-gray-400">
                 This header prints on the PDF. The PO number is auto-generated unless you set one
-                below, and the date is filled in automatically when you save.
+                below, and the date is set automatically unless you change it.
               </p>
             </div>
           )}
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">
-              Purchase order no.{' '}
-              <span className="font-normal text-gray-400">(leave blank to auto-generate)</span>
-            </label>
-            <input
-              value={form.po_number}
-              onChange={set('po_number')}
-              placeholder="e.g. ILAB-0007"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-            />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                Purchase order no.{' '}
+                <span className="font-normal text-gray-400">(leave blank to auto-generate)</span>
+              </label>
+              <input
+                value={form.po_number}
+                onChange={set('po_number')}
+                placeholder="e.g. ILAB-0007"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                PO date{' '}
+                <span className="font-normal text-gray-400">
+                  ({editingPO ? 'change only if needed' : 'defaults to today'})
+                </span>
+              </label>
+              <input
+                type="date"
+                value={form.po_date}
+                onChange={set('po_date')}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              />
+            </div>
           </div>
 
           {/* This PO is addressed TO this vendor - who you're buying from. */}

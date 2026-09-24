@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 
@@ -481,6 +481,7 @@ class PurchaseOrderCreate(BaseModel):
     vendor_name: Optional[str] = None
     vendor_address: Optional[str] = None
     po_number: Optional[str] = None
+    po_date: Optional[date] = None
     customer_no: Optional[str] = None
     bill_to: Optional[str] = None
     ship_to: Optional[str] = None
